@@ -32,7 +32,7 @@ class ProductUnderstandingHandler(BaseNodeHandler):
         config = (context.current_node.config_json or {}) if context.current_node else {}
         model_config = config.get("model", {})
 
-        default = get_default_model("vl")
+        default = get_default_model("文字编辑/生成")
         provider = model_config.get("provider") or (default.provider if default else "qwen_vl")
         model_name = model_config.get("model_name") or (default.model_name if default else "qwen-vl-max")
         temperature = model_config.get("temperature", 0.7)

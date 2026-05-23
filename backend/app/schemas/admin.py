@@ -40,7 +40,7 @@ class ProviderResponse(BaseModel):
 # ── Model ──────────────────────────────────────────────────────────────
 class ModelBase(BaseModel):
     provider_id: int
-    capability: str = Field(..., description="vl/llm/t2i/i2i/i2v/t2v/tts")
+    capability: str = Field(..., description="文字编辑/生成 | 图片编辑/生成 | 视频编辑/生成")
     model_name: str = Field(..., min_length=1, max_length=128)
     display_name: str = Field(..., min_length=1, max_length=128)
     is_default: bool = False

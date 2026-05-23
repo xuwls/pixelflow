@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-_VALID_CAPABILITIES = {"vl", "llm", "t2i", "i2i", "i2v", "t2v", "tts"}
+_VALID_CAPABILITIES = {"文字编辑/生成", "图片编辑/生成", "视频编辑/生成"}
 
 
 def _mask_api_key(api_key: str) -> str:

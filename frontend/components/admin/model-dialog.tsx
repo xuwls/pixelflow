@@ -87,7 +87,7 @@ function ModelForm({
     model?.provider_id ?? providers[0]?.id ?? null,
   );
   const [capability, setCapability] = useState<Capability>(
-    model?.capability ?? "llm",
+    model?.capability ?? "文字编辑/生成",
   );
   const [modelName, setModelName] = useState(model?.model_name ?? "");
   const [displayName, setDisplayName] = useState(model?.display_name ?? "");

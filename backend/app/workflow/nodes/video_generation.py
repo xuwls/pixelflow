@@ -24,14 +24,13 @@ class VideoGenerationHandler(BaseNodeHandler):
         config = (context.current_node.config_json or {}) if context.current_node else {}
         model_config = config.get("model", {})
 
-        # capability switches reference-image behavior:
-        #   i2v (default) → use keyframe as first frame when available
-        #   t2v           → ignore keyframes, generate purely from prompt
-        capability = (model_config.get("capability") or "i2v").lower()
-        use_reference_image = capability == "i2v"
+        # use_reference_image switches reference-image behavior:
+        #   true  → use keyframe as first frame when available
+        #   false → ignore keyframes, generate purely from prompt
+        use_reference_image = model_config.get("use_reference_image", True)
 
         from app.services.ai.model_registry import get_default_model
-        default = get_default_model(capability if capability in {"i2v", "t2v"} else "i2v")
+        default = get_default_model("视频编辑/生成")
         provider = model_config.get("provider") or (default.provider if default else "ali_video")
         model_name = model_config.get("model_name") or (default.model_name if default else "wan2.6-i2v-flash")
         width = config.get("width", 1080)

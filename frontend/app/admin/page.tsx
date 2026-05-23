@@ -384,7 +384,7 @@ export default function AdminPage() {
               onClick={() => setCapabilityFilter(cap)}
               count={counts.byCap[cap] ?? 0}
             >
-              {cap.toUpperCase()}
+              {CAPABILITY_LABELS[cap]}
             </FilterPill>
           ))}
         </div>
@@ -400,11 +400,8 @@ export default function AdminPage() {
               .map(([cap, list]) => (
                 <div key={cap}>
                   <div className="flex items-baseline gap-3 mb-2">
-                    <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-signal">
-                      ⌁ {cap.toUpperCase()}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {CAPABILITY_LABELS[cap]}
+                    <span className="font-mono text-[10px] tracking-[0.3em] text-signal">
+                      ⌁ {CAPABILITY_LABELS[cap]}
                     </span>
                     <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                       {list.length} 个

@@ -274,7 +274,7 @@ async def generate_prompt(
 
     upstream_outputs = await _collect_upstream_outputs(db, project_id, node.node_index)
 
-    meta_model_entry = get_default_model("llm")
+    meta_model_entry = get_default_model("文字编辑/生成")
     meta_provider = meta_model_entry.provider if meta_model_entry else "qwen"
     meta_name = meta_model_entry.model_name if meta_model_entry else "qwen-max"
     text_model = service_container.get_text_model(meta_provider, meta_name)

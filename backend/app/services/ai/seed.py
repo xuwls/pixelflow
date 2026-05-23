@@ -51,52 +51,46 @@ _DEFAULT_PROVIDERS: list[dict] = [
 
 # (provider_name, capability, model_name, display_name, is_default, default_params, description)
 _DEFAULT_MODELS: list[tuple] = [
-    # VL
-    ("qwen_vl", "vl", "qwen-vl-max", "Qwen-VL Max", True,
+    # 文字编辑/生成 (VL + LLM + TTS)
+    ("qwen_vl", "文字编辑/生成", "qwen-vl-max", "Qwen-VL Max", False,
      {"temperature": 0.7, "max_tokens": 2048},
      "Alibaba Qwen vision-language flagship. Best image understanding."),
-    ("qwen_vl", "vl", "qwen-vl-plus", "Qwen-VL Plus", False,
+    ("qwen_vl", "文字编辑/生成", "qwen-vl-plus", "Qwen-VL Plus", False,
      {"temperature": 0.7, "max_tokens": 2048},
      "Faster, cheaper Qwen-VL variant."),
 
-    # LLM
-    ("qwen", "llm", "qwen-max", "Qwen Max", True,
+    ("qwen", "文字编辑/生成", "qwen-max", "Qwen Max", True,
      {"temperature": 0.7, "max_tokens": 4096}, ""),
-    ("qwen", "llm", "qwen-plus", "Qwen Plus", False,
+    ("qwen", "文字编辑/生成", "qwen-plus", "Qwen Plus", False,
      {"temperature": 0.7, "max_tokens": 4096}, ""),
-    ("qwen", "llm", "qwen-turbo", "Qwen Turbo", False,
+    ("qwen", "文字编辑/生成", "qwen-turbo", "Qwen Turbo", False,
      {"temperature": 0.7, "max_tokens": 4096}, ""),
 
-    # T2I
-    ("tongyi_wanxiang", "t2i", "wanx-v1", "Wanxiang v1", True,
-     {"width": 1024, "height": 1024}, ""),
-    ("tongyi_wanxiang", "t2i", "wanx2.1-t2i-turbo", "Wanxiang 2.1 Turbo", False,
-     {"width": 1024, "height": 1024}, ""),
-    ("tongyi_wanxiang", "t2i", "wanx2.1-t2i-plus", "Wanxiang 2.1 Plus", False,
-     {"width": 1024, "height": 1024}, ""),
-
-    # I2I (placeholder; handler raises NotImplementedError)
-    ("tongyi_wanxiang", "i2i", "wanx2.1-imageedit", "Wanxiang Image Edit", False,
-     {"width": 1024, "height": 1024},
-     "Reference-image-driven image generation. Not yet wired."),
-
-    # I2V
-    ("ali_video", "i2v", "wan2.6-i2v-flash", "Wan 2.6 I2V Flash", True,
-     {"duration_sec": 5}, ""),
-    ("ali_video", "i2v", "wan2.6-i2v", "Wan 2.6 I2V", False,
-     {"duration_sec": 5}, ""),
-    ("ali_video", "i2v", "wan2.5-i2v-preview", "Wan 2.5 I2V Preview", False,
-     {"duration_sec": 5}, ""),
-
-    # T2V
-    ("ali_video", "t2v", "wan2.7-t2v", "Wan 2.7 T2V", True,
-     {"duration_sec": 5}, ""),
-    ("ali_video", "t2v", "wan2.6-t2v", "Wan 2.6 T2V", False,
-     {"duration_sec": 5}, ""),
-
-    # TTS
-    ("dashscope_tts", "tts", "cosyvoice-v1", "CosyVoice v1", True,
+    ("dashscope_tts", "文字编辑/生成", "cosyvoice-v1", "CosyVoice v1", False,
      {"voice": "longxiaochun"}, ""),
+
+    # 图片编辑/生成 (T2I + I2I)
+    ("tongyi_wanxiang", "图片编辑/生成", "wanx-v1", "Wanxiang v1", True,
+     {"width": 1024, "height": 1024}, ""),
+    ("tongyi_wanxiang", "图片编辑/生成", "wanx2.1-t2i-turbo", "Wanxiang 2.1 Turbo", False,
+     {"width": 1024, "height": 1024}, ""),
+    ("tongyi_wanxiang", "图片编辑/生成", "wanx2.1-t2i-plus", "Wanxiang 2.1 Plus", False,
+     {"width": 1024, "height": 1024}, ""),
+    ("tongyi_wanxiang", "图片编辑/生成", "wanx2.1-imageedit", "Wanxiang Image Edit", False,
+     {"width": 1024, "height": 1024},
+     "Reference-image-driven image generation."),
+
+    # 视频编辑/生成 (I2V + T2V)
+    ("ali_video", "视频编辑/生成", "wan2.6-i2v-flash", "Wan 2.6 I2V Flash", True,
+     {"duration_sec": 5}, ""),
+    ("ali_video", "视频编辑/生成", "wan2.6-i2v", "Wan 2.6 I2V", False,
+     {"duration_sec": 5}, ""),
+    ("ali_video", "视频编辑/生成", "wan2.5-i2v-preview", "Wan 2.5 I2V Preview", False,
+     {"duration_sec": 5}, ""),
+    ("ali_video", "视频编辑/生成", "wan2.7-t2v", "Wan 2.7 T2V", False,
+     {"duration_sec": 5}, ""),
+    ("ali_video", "视频编辑/生成", "wan2.6-t2v", "Wan 2.6 T2V", False,
+     {"duration_sec": 5}, ""),
 ]
 
 

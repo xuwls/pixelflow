@@ -21,17 +21,10 @@ class KeyframeHandler(BaseNodeHandler):
         config = (context.current_node.config_json or {}) if context.current_node else {}
         model_config = config.get("model", {})
 
-        # Capability defaults to t2i; UI can flip to i2i but we don't have
-        # a wired image-edit backend yet — fail loud so the user knows.
-        capability = (model_config.get("capability") or "t2i").lower()
-        if capability == "i2i":
-            raise NotImplementedError(
-                "I2I (image-to-image) keyframe generation is not yet implemented. "
-                "The model picker accepts I2I models for forward compatibility, "
-                "but no image-edit backend is wired. Switch back to a T2I model."
-            )
+        # Capability defaults to 图片编辑/生成
+        capability = (model_config.get("capability") or "图片编辑/生成")
 
-        default = get_default_model("t2i")
+        default = get_default_model("图片编辑/生成")
         provider = model_config.get("provider") or (default.provider if default else "tongyi_wanxiang")
         model_name = model_config.get("model_name") or (default.model_name if default else "wanx-v1")
         width = config.get("width", 1080)

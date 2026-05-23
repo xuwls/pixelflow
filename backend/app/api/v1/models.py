@@ -21,7 +21,7 @@ router = APIRouter()
 async def get_models(
     capability: str | None = Query(
         default=None,
-        description="Filter by capability (vl/llm/t2i/i2i/i2v/t2v/tts).",
+        description="Filter by capability (文字编辑/生成 | 图片编辑/生成 | 视频编辑/生成).",
     ),
 ):
     entries = list_models(capability)  # type: ignore[arg-type]

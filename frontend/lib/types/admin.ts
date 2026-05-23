@@ -66,11 +66,7 @@ export interface ModelUpdate {
 }
 
 export const CAPABILITIES: Capability[] = [
-  "vl",
-  "llm",
-  "t2i",
-  "i2i",
-  "i2v",
-  "t2v",
-  "tts",
+  "文字编辑/生成",
+  "图片编辑/生成",
+  "视频编辑/生成",
 ];

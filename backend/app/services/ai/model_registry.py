@@ -34,7 +34,7 @@ from app.models.ai_registry import AIModel, AIProvider
 
 logger = logging.getLogger(__name__)
 
-Capability = Literal["vl", "llm", "t2i", "i2i", "i2v", "t2v", "tts"]
+Capability = Literal["文字编辑/生成", "图片编辑/生成", "视频编辑/生成"]
 
 
 @dataclass(frozen=True)
@@ -55,20 +55,17 @@ class ModelEntry:
 
 # ── Pipeline node → capability map (intentionally lives in code) ──────
 NODE_CAPABILITY: dict[str, Capability] = {
-    "product_understanding": "vl",
-    "selling_point": "llm",
-    "script": "llm",
-    "storyboard": "llm",
-    "prompt": "llm",
-    "keyframe": "t2i",
-    "video_generation": "i2v",
-    "voiceover": "tts",
+    "product_understanding": "文字编辑/生成",
+    "selling_point": "文字编辑/生成",
+    "script": "文字编辑/生成",
+    "storyboard": "文字编辑/生成",
+    "prompt": "文字编辑/生成",
+    "keyframe": "图片编辑/生成",
+    "video_generation": "视频编辑/生成",
+    "voiceover": "文字编辑/生成",
 }
 
-NODE_ALT_CAPABILITIES: dict[str, list[Capability]] = {
-    "keyframe": ["t2i", "i2i"],
-    "video_generation": ["i2v", "t2v"],
-}
+NODE_ALT_CAPABILITIES: dict[str, list[Capability]] = {}
 
 
 # ── In-memory snapshot ────────────────────────────────────────────────
