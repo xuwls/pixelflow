@@ -52,7 +52,7 @@ export function ModelDialog({
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl bg-card border border-border rounded-md p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-xl !rounded-2xl p-0 overflow-hidden">
         {open && (
           <ModelForm
             key={model?.id ?? "new"}

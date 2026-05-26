@@ -73,12 +73,12 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        "relative bg-card text-card-foreground border rounded-md transition-all overflow-hidden",
-        "w-[240px]",
-        selected ? "border-signal shadow-[0_0_0_1px_var(--signal)]" : "border-border",
-        isRunning && "border-signal",
-        isDone && !selected && "border-foreground/30",
-        isFail && "border-destructive/70",
+        "relative glass-card text-card-foreground rounded-xl transition-all duration-200 overflow-hidden",
+        "w-[240px] hover:shadow-md",
+        selected ? "!border-signal shadow-glow" : "",
+        isRunning && "!border-signal",
+        isDone && !selected && "!border-foreground/20",
+        isFail && "!border-destructive/60",
       )}
     >
       <Handle
@@ -87,7 +87,7 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
         className="!bg-foreground/40 !w-2 !h-2 !border-0"
       />
 
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-secondary/30">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 bg-secondary/20">
         <div
           className={cn(
             "w-5 h-5 rounded-sm border grid place-items-center",

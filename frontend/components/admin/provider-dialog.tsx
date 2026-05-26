@@ -35,7 +35,7 @@ interface Props {
 export function ProviderDialog({ open, onOpenChange, provider, onSaved }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-card border border-border rounded-md p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-lg !rounded-2xl p-0 overflow-hidden">
         {open && (
           <ProviderForm
             key={provider?.id ?? "new"}

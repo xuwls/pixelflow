@@ -47,11 +47,14 @@ export function CreateProjectDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeDialog()}>
-      <DialogContent className="sm:max-w-lg bg-card border border-border rounded-md p-0 overflow-hidden">
-        <div className="px-6 pt-5 pb-4 border-b border-border bg-gradient-to-b from-secondary/40 to-transparent">
-          <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-signal mb-2">
-            ◉ NEW · 新建工程
-          </p>
+      <DialogContent className="sm:max-w-lg !rounded-2xl p-0 overflow-hidden">
+        <div className="px-6 pt-5 pb-4 border-b border-border/40 bg-gradient-to-b from-secondary/30 to-transparent">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="accent-dot" />
+            <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-signal">
+              NEW · 新建工程
+            </p>
+          </div>
           <DialogHeader className="space-y-1.5">
             <DialogTitle
               className="text-2xl leading-tight text-foreground"
@@ -92,7 +95,7 @@ export function CreateProjectDialog() {
           </Field>
         </div>
 
-        <div className="px-6 py-4 border-t border-border bg-secondary/30 flex items-center justify-between gap-3">
+        <div className="px-6 py-4 border-t border-border/40 bg-secondary/10 flex items-center justify-between gap-3">
           <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
             按 ⏎ 立即开始
           </p>

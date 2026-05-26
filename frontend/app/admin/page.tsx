@@ -190,12 +190,15 @@ export default function AdminPage() {
       />
 
       {/* Page banner */}
-      <section className="border-b border-border bg-hairline">
-        <div className="mx-auto max-w-[1600px] px-6 py-12 grid grid-cols-12 gap-6 items-end">
+      <section className="border-b border-border/60 bg-hairline">
+        <div className="mx-auto max-w-[1600px] px-8 py-14 grid grid-cols-12 gap-8 items-end">
           <div className="col-span-12 md:col-span-8 reveal reveal-1">
-            <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-signal mb-3">
-              § Admin · 模型管理
-            </p>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="accent-dot" />
+              <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-signal">
+                § Admin · 模型管理
+              </p>
+            </div>
             <h1
               className="text-4xl md:text-6xl leading-[0.95] tracking-tight text-foreground"
               style={{ fontFamily: "var(--font-heading)", fontWeight: 700 }}
@@ -208,7 +211,7 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="col-span-12 md:col-span-4 reveal reveal-2">
-            <dl className="grid grid-cols-3 gap-px bg-border border border-border">
+            <dl className="grid grid-cols-3 gap-3">
               <Stat label="供应商" value={providers.length} />
               <Stat
                 label="启用"
@@ -522,7 +525,7 @@ function Stat({
   accent?: boolean;
 }) {
   return (
-    <div className="bg-background px-4 py-4">
+    <div className="glass-card px-4 py-4 rounded-xl">
       <p className="font-mono text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-1">
         {label}
       </p>
@@ -552,9 +555,12 @@ function SectionHeader({
   return (
     <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
       <div>
-        <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-signal mb-1">
-          {eyebrow}
-        </p>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="accent-dot" />
+          <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-signal">
+            {eyebrow}
+          </p>
+        </div>
         <h2
           className="text-2xl text-foreground"
           style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}
@@ -584,10 +590,10 @@ function FilterPill({
   return (
     <button
       onClick={onClick}
-      className={`h-7 px-2.5 rounded-sm border transition-colors ${
+      className={`h-7 px-3 rounded-full border transition-all duration-200 ${
         active
-          ? "bg-foreground text-background border-foreground"
-          : "border-border text-muted-foreground hover:text-foreground"
+          ? "bg-foreground text-background border-foreground shadow-sm"
+          : "border-border/60 text-muted-foreground hover:text-foreground hover:border-foreground/30"
       }`}
     >
       {children}

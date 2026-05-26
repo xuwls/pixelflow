@@ -44,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="zh-CN"
-      className={`${notoSerifSC.variable} ${notoSansSC.variable} ${fraunces.variable} ${mono.variable} h-full antialiased`}
+      className={`${notoSerifSC.variable} ${notoSansSC.variable} ${fraunces.variable} ${mono.variable} h-full antialiased scroll-smooth`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}

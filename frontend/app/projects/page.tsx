@@ -51,12 +51,15 @@ export default function ProjectsPage() {
       <CreateProjectDialog />
 
       {/* Page banner */}
-      <section className="border-b border-border bg-hairline">
-        <div className="mx-auto max-w-[1600px] px-6 py-12 grid grid-cols-12 gap-6 items-end">
+      <section className="border-b border-border/60 bg-hairline">
+        <div className="mx-auto max-w-[1600px] px-8 py-14 grid grid-cols-12 gap-8 items-end">
           <div className="col-span-12 md:col-span-8 reveal reveal-1">
-            <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-signal mb-3">
-              § Library · 项目库
-            </p>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="accent-dot" />
+              <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-signal">
+                § Library · 项目库
+              </p>
+            </div>
             <h1
               className="text-4xl md:text-6xl leading-[0.95] tracking-tight text-foreground"
               style={{ fontFamily: "var(--font-heading)", fontWeight: 700 }}
@@ -68,7 +71,7 @@ export default function ProjectsPage() {
             </p>
           </div>
           <div className="col-span-12 md:col-span-4 reveal reveal-2">
-            <dl className="grid grid-cols-3 gap-px bg-border border border-border">
+            <dl className="grid grid-cols-3 gap-3">
               <Stat label="总数" value={counts.all} />
               <Stat label="运行中" value={counts.processing} accent />
               <Stat label="已完成" value={counts.completed} />
@@ -77,36 +80,36 @@ export default function ProjectsPage() {
         </div>
       </section>
 
-      {/* Toolbar */}
-      <section className="border-b border-border sticky top-14 z-30 backdrop-blur-md bg-background/85">
-        <div className="mx-auto max-w-[1600px] px-6 h-12 flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 font-mono text-[10px] tracking-[0.2em] uppercase">
+      {/* Toolbar — glass */}
+      <section className="border-b border-border/60 sticky top-16 z-30 glass">
+        <div className="mx-auto max-w-[1600px] px-8 h-12 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.2em] uppercase">
             {(["all", "processing", "completed", "draft"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`h-7 px-2.5 rounded-sm border transition-colors ${
+                className={`h-7 px-3 rounded-full border transition-all duration-200 ${
                   filter === f
-                    ? "bg-foreground text-background border-foreground"
-                    : "border-border text-muted-foreground hover:text-foreground"
+                    ? "bg-foreground text-background border-foreground shadow-sm"
+                    : "border-border/60 text-muted-foreground hover:text-foreground hover:border-foreground/30"
                 }`}
               >
                 {f === "all" ? "全部" : STATUS_LABEL[f]}
-                <span className="ml-1.5 opacity-60">{counts[f]}</span>
+                <span className="ml-1.5 opacity-60 tabular-nums">{counts[f]}</span>
               </button>
             ))}
           </div>
 
-          <div className="flex-1 min-w-[200px] flex items-center gap-2 border border-border rounded-sm h-7 px-2.5 bg-background/60 focus-within:border-signal/60 transition-colors">
-            <Search className="w-3.5 h-3.5 text-muted-foreground" />
+          <div className="flex-1 min-w-[200px] flex items-center gap-2 border border-border/60 rounded-full h-8 px-3 bg-background/40 focus-within:border-signal/50 focus-within:shadow-[0_0_0_2px_var(--signal)/8] transition-all duration-200">
+            <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="按项目名称搜索…"
-              className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/60"
+              className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/50"
             />
             {query && (
-              <span className="font-mono text-[10px] tracking-wider uppercase text-muted-foreground">
+              <span className="font-mono text-[10px] tracking-wider uppercase text-muted-foreground shrink-0">
                 {filtered.length} hit
               </span>
             )}
@@ -115,7 +118,7 @@ export default function ProjectsPage() {
           <Button
             onClick={openCreateDialog}
             size="sm"
-            className="bg-signal text-signal-foreground hover:bg-signal/90 font-mono text-xs tracking-wider gap-1.5"
+            className="bg-signal text-signal-foreground hover:bg-signal/90 font-mono text-[11px] tracking-wider gap-1.5 shadow-glow"
           >
             <Plus className="w-3.5 h-3.5" />
             新建项目
@@ -124,13 +127,13 @@ export default function ProjectsPage() {
       </section>
 
       {/* Grid */}
-      <section className="mx-auto max-w-[1600px] px-6 py-10">
+      <section className="mx-auto max-w-[1600px] px-8 py-10">
         {isLoading ? (
           <ProjectGridSkeleton />
         ) : filtered.length === 0 ? (
           <EmptyState onCreate={openCreateDialog} hasProjects={projects.length > 0} />
         ) : (
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filtered.map((p, i) => (
               <ProjectCard
                 key={p.id}
@@ -148,7 +151,7 @@ export default function ProjectsPage() {
 
 function Stat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
   return (
-    <div className="bg-background px-4 py-4">
+    <div className="glass-card px-4 py-4 rounded-xl">
       <p className="font-mono text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-1">
         {label}
       </p>
@@ -177,7 +180,7 @@ function ProjectCard({
 
   return (
     <li
-      className="reveal group relative border border-border bg-card hover:border-foreground/30 transition-colors"
+      className="reveal glass-card overflow-hidden p-0"
       style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
     >
       {/* index strip */}
@@ -221,7 +224,7 @@ function ProjectCard({
           )}
 
           <span
-            className="absolute bottom-3 right-3 text-[10px] font-mono tracking-[0.25em] uppercase text-foreground/80 bg-background/60 backdrop-blur px-1.5 py-0.5 rounded-sm border border-border"
+            className="absolute bottom-3 right-3 text-[10px] font-mono tracking-[0.25em] uppercase text-foreground/70 glass px-2 py-1 rounded-md"
             aria-hidden
           >
             {dateStr}
@@ -293,24 +296,27 @@ function ProjectGridSkeleton() {
 
 function EmptyState({ onCreate, hasProjects }: { onCreate: () => void; hasProjects: boolean }) {
   return (
-    <div className="border border-dashed border-border py-24 px-6 text-center bg-hairline">
+    <div className="glass-card py-20 px-6 text-center rounded-2xl">
+      <div className="w-12 h-12 mx-auto mb-5 rounded-full bg-secondary/60 grid place-items-center">
+        <span className="text-2xl">📭</span>
+      </div>
       <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-signal mb-3">
         EMPTY · 空空如也
       </p>
       <h2
-        className="text-3xl text-foreground mb-2"
+        className="text-2xl text-foreground mb-2"
         style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}
       >
         {hasProjects ? "没有匹配的项目" : "还没有任何项目"}
       </h2>
-      <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+      <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto leading-relaxed">
         {hasProjects
           ? "试试调整筛选条件,或者创建一个新的视频工程。"
           : "上传一张商品图,系统会用大约 4 分钟交付一支可发布的短视频。"}
       </p>
       <Button
         onClick={onCreate}
-        className="bg-signal text-signal-foreground hover:bg-signal/90 font-mono text-xs tracking-[0.2em] uppercase gap-2"
+        className="bg-signal text-signal-foreground hover:bg-signal/90 font-mono text-xs tracking-[0.2em] uppercase gap-2 shadow-glow"
       >
         <Plus className="w-3.5 h-3.5" />
         创建第一个项目

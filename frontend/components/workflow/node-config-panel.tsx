@@ -223,12 +223,15 @@ function NodeEditor({
       : null;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-4 py-4 border-b border-border bg-secondary/30">
+    <div className="flex flex-col h-full glass">
+      <div className="px-4 py-4 border-b border-border/40 bg-secondary/10">
         <div className="flex items-baseline justify-between mb-2">
-          <p className="font-mono text-[10px] tracking-[0.25em] uppercase text-signal">
-            INSPECTOR · 检视
-          </p>
+          <div className="flex items-center gap-2">
+            <span className="accent-dot" />
+            <p className="font-mono text-[10px] tracking-[0.25em] uppercase text-signal">
+              INSPECTOR · 检视
+            </p>
+          </div>
           <StatusBadge status={node.status} />
         </div>
         <p className="font-mono text-[10px] tracking-wider uppercase text-muted-foreground">
@@ -353,7 +356,7 @@ function NodeEditor({
         )}
       </div>
 
-      <div className="px-4 py-3 border-t border-border bg-secondary/30 grid grid-cols-2 gap-2">
+      <div className="px-4 py-3 border-t border-border/40 bg-secondary/10 grid grid-cols-2 gap-2">
         <Button
           size="sm"
           onClick={handleRun}
@@ -395,7 +398,7 @@ function Section({
           {caption} · {title}
         </Label>
         <span
-          className={`h-px flex-1 ${tone === "error" ? "bg-destructive/40" : "bg-border"}`}
+          className={tone === "error" ? "h-px flex-1 bg-destructive/40" : "accent-line flex-1"}
         />
       </header>
       <div>{children}</div>

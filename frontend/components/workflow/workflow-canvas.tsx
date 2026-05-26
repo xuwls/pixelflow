@@ -492,7 +492,7 @@ function CanvasInner({ projectId }: { projectId: number }) {
           variant={BackgroundVariant.Dots}
           gap={24}
           size={1}
-          color="oklch(1 0 0 / 0.10)"
+          color="oklch(0.18 0.01 270 / 0.12)"
         />
         <Controls showInteractive={false} />
       </ReactFlow>
