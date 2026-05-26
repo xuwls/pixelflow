@@ -1,83 +1,178 @@
 "use client";
 
-import { memo } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { memo, useMemo } from "react";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { StatusBadge } from "./status-badge";
 import { cn } from "@/lib/utils";
-import {
-  Upload, Scan, Sparkles, FileText, Layout,
-  Wand, Image as ImageIcon, Video, Type, Mic, Clapperboard,
-} from "lucide-react";
+import { KIND_LABELS, type NodeKind } from "@/lib/types/capability";
+import type { NodeStatus } from "@/lib/types/workflow";
+import { FileText, Image as ImageIcon, Video } from "lucide-react";
 
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  Upload, Scan, Sparkles, FileText, Layout,
-  Wand, Image: ImageIcon, Video, Type, Mic, Clapperboard,
+const KIND_ICONS: Record<NodeKind, React.ComponentType<{ className?: string }>> = {
+  text: FileText,
+  image: ImageIcon,
+  video: Video,
 };
 
-interface CustomNodeData {
-  label: string;
-  index: number;
-  icon: string;
-  status: string;
-  outputSummary?: string;
+const STORAGE_BASE =
+  process.env.NEXT_PUBLIC_STORAGE_URL || "http://localhost:9000/pixelflow";
+
+function resolveAssetUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  return `${STORAGE_BASE}/${value.replace(/^\/+/, "")}`;
 }
 
-function CustomNodeComponent({ data, selected }: { data: CustomNodeData; selected?: boolean }) {
-  const Icon = iconMap[data.icon] || FileText;
-  const isRunning = data.status === "running";
-  const isDone = data.status === "completed";
-  const isFail = data.status === "failed";
+function pickPreview(
+  kind: NodeKind,
+  output: Record<string, unknown> | null,
+): { kind: "image" | "video" | "text"; src?: string; text?: string } | null {
+  if (!output) return null;
+
+  if (kind === "image") {
+    const images = output.images as Array<{ url?: string }> | undefined;
+    const url = images?.[0]?.url ?? (output.url as string | undefined);
+    const resolved = resolveAssetUrl(url);
+    if (resolved) return { kind: "image", src: resolved };
+  }
+
+  if (kind === "video") {
+    const videos = output.videos as Array<{ url?: string }> | undefined;
+    const url = videos?.[0]?.url ?? (output.url as string | undefined);
+    const resolved = resolveAssetUrl(url);
+    if (resolved) return { kind: "video", src: resolved };
+  }
+
+  if (kind === "text") {
+    const candidates = [output.text, output.content, output.title, output.summary];
+    const found = candidates.find((v) => typeof v === "string" && v.trim());
+    if (typeof found === "string") return { kind: "text", text: found };
+  }
+
+  return null;
+}
+
+export interface CustomNodeData extends Record<string, unknown> {
+  kind: NodeKind;
+  title: string | null;
+  prompt: string | null;
+  status: NodeStatus;
+  output_json: Record<string, unknown> | null;
+  error_message: string | null;
+}
+
+function CustomNodeComponent({ data, selected }: NodeProps) {
+  const d = data as CustomNodeData;
+  const Icon = KIND_ICONS[d.kind];
+  const preview = useMemo(() => pickPreview(d.kind, d.output_json), [d.kind, d.output_json]);
+
+  const isRunning = d.status === "running";
+  const isDone = d.status === "completed";
+  const isFail = d.status === "failed";
 
   return (
     <div
       className={cn(
-        "relative bg-card text-card-foreground border min-w-[230px] rounded-md transition-all",
-        "px-3 py-2.5",
+        "relative bg-card text-card-foreground border rounded-md transition-all overflow-hidden",
+        "w-[240px]",
         selected ? "border-signal shadow-[0_0_0_1px_var(--signal)]" : "border-border",
         isRunning && "border-signal",
-        isDone && "border-foreground/30",
+        isDone && !selected && "border-foreground/30",
         isFail && "border-destructive/70",
       )}
     >
-      <Handle type="target" position={Position.Top} className="!bg-foreground/40 !w-1.5 !h-1.5" />
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!bg-foreground/40 !w-2 !h-2 !border-0"
+      />
 
-      {/* index strip */}
-      <div className="flex items-center gap-2 mb-2">
-        <span className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground">
-          {String(data.index + 1).padStart(2, "0")}
-        </span>
-        <span className="h-px flex-1 bg-border" />
-        <StatusBadge status={data.status} />
-      </div>
-
-      <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-secondary/30">
         <div
           className={cn(
-            "w-6 h-6 rounded-sm border grid place-items-center transition-colors",
-            isRunning ? "border-signal/60 bg-signal/10 text-signal" : "border-border bg-muted/40 text-muted-foreground",
+            "w-5 h-5 rounded-sm border grid place-items-center",
+            isRunning
+              ? "border-signal/60 bg-signal/10 text-signal"
+              : "border-border bg-muted/40 text-muted-foreground",
             isDone && "border-foreground/30 text-foreground",
             isFail && "border-destructive/70 text-destructive",
           )}
         >
           <Icon className="w-3 h-3" />
         </div>
-        <span className="text-[13px] font-medium tracking-wide">{data.label}</span>
+        <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
+          {KIND_LABELS[d.kind]}
+        </span>
+        <span className="flex-1" />
+        <StatusBadge status={d.status} />
       </div>
 
-      {data.outputSummary && (
-        <p className="mt-1 text-[11px] text-muted-foreground truncate font-mono">
-          ▸ {data.outputSummary}
+      {d.title && (
+        <p className="px-3 pt-2 text-[12px] font-medium tracking-wide truncate">
+          {d.title}
         </p>
       )}
 
-      {/* running indicator strip */}
+      {preview?.kind === "image" && preview.src && (
+        <div className="aspect-video bg-muted/30 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={preview.src}
+            alt=""
+            className="w-full h-full object-cover"
+            draggable={false}
+          />
+        </div>
+      )}
+
+      {preview?.kind === "video" && preview.src && (
+        <div className="aspect-video bg-black overflow-hidden">
+          <video
+            src={preview.src}
+            className="w-full h-full object-cover"
+            muted
+            loop
+            playsInline
+            preload="metadata"
+          />
+        </div>
+      )}
+
+      {preview?.kind === "text" && preview.text && (
+        <p className="px-3 pt-1 pb-2 text-[11px] leading-relaxed text-foreground/85 line-clamp-4 whitespace-pre-wrap">
+          {preview.text}
+        </p>
+      )}
+
+      {!preview && d.prompt && (
+        <p className="px-3 pt-1 pb-2 text-[11px] leading-snug text-muted-foreground line-clamp-3 italic">
+          ▸ {d.prompt}
+        </p>
+      )}
+
+      {!preview && !d.prompt && (
+        <p className="px-3 py-3 text-[10px] text-muted-foreground/70 font-mono tracking-wider uppercase">
+          empty · 右键编辑
+        </p>
+      )}
+
+      {isFail && d.error_message && (
+        <p className="px-3 py-1.5 text-[10px] text-destructive bg-destructive/10 line-clamp-2 font-mono leading-tight">
+          {d.error_message}
+        </p>
+      )}
+
       {isRunning && (
         <div className="absolute -bottom-px left-2 right-2 h-px overflow-hidden">
           <div className="h-full w-1/3 bg-signal animate-[ticker_1.6s_linear_infinite]" />
         </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} className="!bg-foreground/40 !w-1.5 !h-1.5" />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!bg-foreground/40 !w-2 !h-2 !border-0"
+      />
     </div>
   );
 }

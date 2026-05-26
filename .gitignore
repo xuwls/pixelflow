@@ -55,3 +55,4 @@ backend/alembic/versions/*.pyc
 
 
 .specstory/
+.reasonix/

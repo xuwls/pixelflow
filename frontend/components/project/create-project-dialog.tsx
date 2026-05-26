@@ -14,9 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { useUIStore } from "@/lib/store/ui-store";
 import { useProjectStore } from "@/lib/store/project-store";
-import { uploadProductImage } from "@/lib/api/projects";
 import { toast } from "sonner";
-import { ImagePlus, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export function CreateProjectDialog() {
   const router = useRouter();
@@ -26,7 +25,6 @@ export function CreateProjectDialog() {
   const [name, setName] = useState("");
   const [productTitle, setProductTitle] = useState("");
   const [productDescription, setProductDescription] = useState("");
-  const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -34,14 +32,10 @@ export function CreateProjectDialog() {
     setSubmitting(true);
     try {
       const project = await createProject(name, productTitle, productDescription);
-      if (file) {
-        await uploadProductImage(project.id, file);
-      }
       toast.success("项目已创建");
       setName("");
       setProductTitle("");
       setProductDescription("");
-      setFile(null);
       closeDialog();
       router.push(`/projects/${project.id}`);
     } catch {
@@ -63,10 +57,10 @@ export function CreateProjectDialog() {
               className="text-2xl leading-tight text-foreground"
               style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}
             >
-              一张商品图。<br />一段会卖货的视频。
+              空白画布。<br />从一个节点开始构建。
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground tracking-wide">
-              填写商品信息后,流水线将自动开始执行。整个过程通常在 3 至 5 分钟内完成。
+              新建后进入空画布,在画布上右键即可创建文本/图片/视频节点,自由编排你的工作流。
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -88,37 +82,13 @@ export function CreateProjectDialog() {
             />
           </Field>
 
-          <Field label="商品卖点 / 描述" hint="OPTIONAL">
+          <Field label="项目描述" hint="OPTIONAL">
             <Textarea
               value={productDescription}
               onChange={(e) => setProductDescription(e.target.value)}
-              placeholder="一句话也可以。AI 会自动补全场景与文案。"
+              placeholder="可以记录这个项目的背景、风格基调等,后续可在节点中引用。"
               rows={3}
             />
-          </Field>
-
-          <Field label="商品图" hint="OPTIONAL">
-            <label className="group relative block border border-dashed border-border hover:border-signal/60 rounded-md cursor-pointer transition-colors">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              />
-              <div className="flex items-center gap-3 px-3 py-3">
-                <div className="w-10 h-10 rounded-sm border border-border bg-muted/50 grid place-items-center group-hover:border-signal/60 transition-colors">
-                  <ImagePlus className="w-4 h-4 text-muted-foreground group-hover:text-signal transition-colors" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm truncate text-foreground">
-                    {file ? file.name : "点击上传或拖拽图片"}
-                  </div>
-                  <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                    {file ? `${(file.size / 1024).toFixed(0)} KB` : "JPG / PNG / WEBP · ≤ 10MB"}
-                  </div>
-                </div>
-              </div>
-            </label>
           </Field>
         </div>
 

@@ -1,18 +1,12 @@
-"""Public read-only catalog endpoints: model registry + node capability map."""
+"""Public read-only catalog endpoints for the model registry."""
 
 from fastapi import APIRouter, Query
 
 from app.schemas.models import (
     ModelEntryResponse,
     ModelListResponse,
-    NodeCapabilityResponse,
 )
-from app.services.ai.model_registry import (
-    NODE_ALT_CAPABILITIES,
-    NODE_CAPABILITY,
-    list_models,
-    node_capabilities,
-)
+from app.services.ai.model_registry import list_models
 
 router = APIRouter()
 
@@ -40,37 +34,3 @@ async def get_models(
             for m in entries
         ],
     )
-
-
-@router.get("/node-capabilities", response_model=list[NodeCapabilityResponse])
-async def get_node_capabilities():
-    """Tells the frontend which capability each node consumes.
-
-    Frontend uses this to filter the model dropdown per-node.
-    """
-    out: list[NodeCapabilityResponse] = []
-    seen: set[str] = set()
-
-    for node_type, _cap in NODE_CAPABILITY.items():
-        caps = node_capabilities(node_type)
-        out.append(
-            NodeCapabilityResponse(
-                node_type=node_type,
-                capabilities=caps,
-                default_capability=caps[0] if caps else None,
-            )
-        )
-        seen.add(node_type)
-
-    for node_type, caps in NODE_ALT_CAPABILITIES.items():
-        if node_type in seen:
-            continue
-        out.append(
-            NodeCapabilityResponse(
-                node_type=node_type,
-                capabilities=list(caps),
-                default_capability=caps[0] if caps else None,
-            )
-        )
-
-    return out

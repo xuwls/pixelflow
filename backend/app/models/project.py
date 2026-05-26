@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,7 +19,10 @@ class Project(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
 
     nodes: Mapped[list["WorkflowNode"]] = relationship(
-        back_populates="project", order_by="WorkflowNode.node_index", passive_deletes=True
+        back_populates="project", passive_deletes=True
+    )
+    edges: Mapped[list["WorkflowEdge"]] = relationship(
+        back_populates="project", passive_deletes=True
     )
     media_files: Mapped[list["MediaFile"]] = relationship(back_populates="project", passive_deletes=True)
     runs: Mapped[list["WorkflowRun"]] = relationship(back_populates="project", passive_deletes=True)
@@ -32,11 +35,16 @@ class WorkflowNode(Base, TimestampMixin):
     project_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("project.id", ondelete="CASCADE"), nullable=False
     )
-    node_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    node_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+    # 'text' | 'image' | 'video'
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    position_x: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    position_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # asset mode = no prompt, output set on creation
+    # generation mode = has prompt + upstream edges, output set after run
+    prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="idle", nullable=False)
     config_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    input_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     output_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     debug_log: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
@@ -45,10 +53,22 @@ class WorkflowNode(Base, TimestampMixin):
 
     project: Mapped["Project"] = relationship(back_populates="nodes")
 
-    __table_args__ = (
-        UniqueConstraint("project_id", "node_type", name="uq_project_node_type"),
-        UniqueConstraint("project_id", "node_index", name="uq_project_node_index"),
+
+class WorkflowEdge(Base, TimestampMixin):
+    __tablename__ = "workflow_edge"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("project.id", ondelete="CASCADE"), nullable=False
     )
+    source_node_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("workflow_node.id", ondelete="CASCADE"), nullable=False
+    )
+    target_node_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("workflow_node.id", ondelete="CASCADE"), nullable=False
+    )
+
+    project: Mapped["Project"] = relationship(back_populates="edges")
 
 
 class WorkflowRun(Base, TimestampMixin):
@@ -57,6 +77,9 @@ class WorkflowRun(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     project_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("project.id", ondelete="CASCADE"), nullable=False
+    )
+    node_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("workflow_node.id", ondelete="SET NULL"), nullable=True
     )
     status: Mapped[str] = mapped_column(String(32), default="running", nullable=False)
     celery_task_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

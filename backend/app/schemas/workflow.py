@@ -8,15 +8,5 @@ class WorkflowRunResponse(BaseModel):
     status: str
 
 
-class WorkflowStatusResponse(BaseModel):
-    project_status: str
-    nodes: list[dict]
-
-
-class RetryResponse(BaseModel):
-    run_id: str
-    status: str
-
-
 class StopAllResponse(BaseModel):
     cancelled_count: int

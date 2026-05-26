@@ -1,28 +1,85 @@
-import { apiFetch } from "./client";
+import { apiFetch, apiUpload } from "./client";
+import type { NodeKind, WorkflowNode, WorkflowEdge, MediaFile } from "@/lib/types/workflow";
 
-export function triggerWorkflow(projectId: number): Promise<{ run_id: string; status: string }> {
-  return apiFetch(`/projects/${projectId}/workflow/run`, { method: "POST" });
+export interface CreateNodeInput {
+  kind: NodeKind;
+  title?: string;
+  position_x: number;
+  position_y: number;
+  prompt?: string;
+  config_json?: Record<string, unknown>;
+  output_json?: Record<string, unknown>;
 }
 
-export function getWorkflowStatus(projectId: number): Promise<{ project_status: string; nodes: Array<Record<string, unknown>> }> {
-  return apiFetch(`/projects/${projectId}/workflow/status`);
+export interface UpdateNodeInput {
+  title?: string;
+  position_x?: number;
+  position_y?: number;
+  prompt?: string;
+  config_json?: Record<string, unknown>;
+  output_json?: Record<string, unknown>;
 }
 
-export function getNodeDetail(projectId: number, nodeId: number): Promise<Record<string, unknown>> {
-  return apiFetch(`/projects/${projectId}/workflow/nodes/${nodeId}`);
-}
-
-export function updateNodeConfig(projectId: number, nodeId: number, config: Record<string, unknown>): Promise<Record<string, unknown>> {
-  return apiFetch(`/projects/${projectId}/workflow/nodes/${nodeId}/config`, {
-    method: "PUT",
-    body: JSON.stringify({ config_json: config }),
+export function createNode(projectId: number, input: CreateNodeInput): Promise<WorkflowNode> {
+  return apiFetch(`/projects/${projectId}/nodes`, {
+    method: "POST",
+    body: JSON.stringify(input),
   });
 }
 
-export function retryNode(projectId: number, nodeId: number): Promise<{ run_id: string; status: string }> {
-  return apiFetch(`/projects/${projectId}/workflow/nodes/${nodeId}/retry`, { method: "POST" });
+export function patchNode(projectId: number, nodeId: number, input: UpdateNodeInput): Promise<WorkflowNode> {
+  return apiFetch(`/projects/${projectId}/nodes/${nodeId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteNode(projectId: number, nodeId: number): Promise<{ deleted: boolean }> {
+  return apiFetch(`/projects/${projectId}/nodes/${nodeId}`, { method: "DELETE" });
+}
+
+export function bulkUpdatePositions(
+  projectId: number,
+  positions: Array<{ id: number; position_x: number; position_y: number }>,
+): Promise<WorkflowNode[]> {
+  return apiFetch(`/projects/${projectId}/nodes/positions`, {
+    method: "PUT",
+    body: JSON.stringify({ positions }),
+  });
+}
+
+export function uploadNodeAsset(projectId: number, nodeId: number, file: File): Promise<WorkflowNode> {
+  const fd = new FormData();
+  fd.append("file", file);
+  return apiUpload(`/projects/${projectId}/nodes/${nodeId}/upload`, fd);
+}
+
+export function createEdge(
+  projectId: number,
+  sourceNodeId: number,
+  targetNodeId: number,
+): Promise<WorkflowEdge> {
+  return apiFetch(`/projects/${projectId}/edges`, {
+    method: "POST",
+    body: JSON.stringify({
+      source_node_id: sourceNodeId,
+      target_node_id: targetNodeId,
+    }),
+  });
+}
+
+export function deleteEdge(projectId: number, edgeId: number): Promise<{ deleted: boolean }> {
+  return apiFetch(`/projects/${projectId}/edges/${edgeId}`, { method: "DELETE" });
+}
+
+export function runNode(projectId: number, nodeId: number): Promise<{ run_id: string; status: string }> {
+  return apiFetch(`/projects/${projectId}/nodes/${nodeId}/run`, { method: "POST" });
 }
 
 export function cancelAllWorkflows(): Promise<{ cancelled_count: number }> {
   return apiFetch("/projects/stop-all-workflows", { method: "POST" });
+}
+
+export function getNodeAsset(projectId: number, nodeId: number): Promise<MediaFile> {
+  return apiFetch(`/projects/${projectId}/nodes/${nodeId}/asset`);
 }

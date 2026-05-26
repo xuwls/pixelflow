@@ -1,19 +1,17 @@
-from fastapi import APIRouter, HTTPException, UploadFile
-from sqlalchemy import delete, select, text
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import GetDB
-from app.models.project import MediaFile, Project, WorkflowNode
+from app.models.project import MediaFile, Project, WorkflowEdge, WorkflowNode
 from app.schemas.project import (
-    MediaResponse,
     ProjectCreate,
     ProjectDetailResponse,
     ProjectResponse,
     ProjectUpdate,
 )
 from app.services.storage import storage_service
-from app.workflow.pipeline import PIPELINE
 
 router = APIRouter()
 
@@ -26,17 +24,6 @@ async def create_project(body: ProjectCreate, db: AsyncSession = GetDB):
         product_description=body.product_description,
     )
     db.add(project)
-    await db.flush()
-
-    for i, pnode in enumerate(PIPELINE):
-        node = WorkflowNode(
-            project_id=project.id,
-            node_type=pnode.node_type,
-            node_index=i,
-            config_json=pnode.default_config.copy() if pnode.default_config else {},
-        )
-        db.add(node)
-
     await db.commit()
     await db.refresh(project)
     return project
@@ -65,6 +52,7 @@ async def get_project(project_id: int, db: AsyncSession = GetDB):
         .where(Project.id == project_id)
         .options(
             selectinload(Project.nodes),
+            selectinload(Project.edges),
             selectinload(Project.media_files),
         )
     )
@@ -110,46 +98,9 @@ async def delete_project(project_id: int, db: AsyncSession = GetDB):
             pass
 
     await db.execute(text("DELETE FROM media_file WHERE project_id = :pid"), {"pid": project_id})
+    await db.execute(text("DELETE FROM workflow_edge WHERE project_id = :pid"), {"pid": project_id})
     await db.execute(text("DELETE FROM workflow_node WHERE project_id = :pid"), {"pid": project_id})
     await db.execute(text("DELETE FROM workflow_run WHERE project_id = :pid"), {"pid": project_id})
     await db.execute(text("DELETE FROM project WHERE id = :pid"), {"pid": project_id})
     await db.commit()
     return {"deleted": True}
-
-
-@router.post("/{project_id}/upload", response_model=MediaResponse)
-async def upload_product_image(
-    project_id: int,
-    file: UploadFile,
-    db: AsyncSession = GetDB,
-):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    content = await file.read()
-    content_type = file.content_type or "application/octet-stream"
-
-    object_key = await storage_service.upload_file(
-        key=f"projects/{project_id}/product/{file.filename}",
-        file_obj=content,
-        content_type=content_type,
-    )
-
-    media = MediaFile(
-        project_id=project_id,
-        file_type="product_image",
-        file_name=file.filename,
-        file_url=object_key,
-        file_size=len(content),
-        mime_type=content_type,
-    )
-    db.add(media)
-
-    if not project.cover_url:
-        project.cover_url = object_key
-
-    await db.commit()
-    await db.refresh(media)
-    return media

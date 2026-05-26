@@ -1,7 +1,11 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
+
+
+NodeKind = Literal["text", "image", "video"]
+NodeStatus = Literal["idle", "running", "completed", "failed", "cancelled"]
 
 
 class ProjectCreate(BaseModel):
@@ -29,19 +33,16 @@ class ProjectResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ProjectDetailResponse(ProjectResponse):
-    nodes: list["NodeResponse"] = []
-    media_files: list["MediaResponse"] = []
-
-
 class NodeResponse(BaseModel):
     id: int
     project_id: int
-    node_type: str
-    node_index: int
-    status: str
+    kind: NodeKind
+    title: Optional[str] = None
+    position_x: float
+    position_y: float
+    prompt: Optional[str] = None
+    status: NodeStatus
     config_json: Optional[dict] = None
-    input_json: Optional[dict] = None
     output_json: Optional[dict] = None
     error_message: Optional[str] = None
     debug_log: Optional[dict] = None
@@ -52,8 +53,13 @@ class NodeResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class NodeConfigUpdate(BaseModel):
-    config_json: dict
+class EdgeResponse(BaseModel):
+    id: int
+    project_id: int
+    source_node_id: int
+    target_node_id: int
+
+    model_config = {"from_attributes": True}
 
 
 class MediaResponse(BaseModel):
@@ -69,3 +75,47 @@ class MediaResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ProjectDetailResponse(ProjectResponse):
+    nodes: list[NodeResponse] = []
+    edges: list[EdgeResponse] = []
+    media_files: list[MediaResponse] = []
+
+
+class NodeCreate(BaseModel):
+    kind: NodeKind
+    title: Optional[str] = None
+    position_x: float = 0.0
+    position_y: float = 0.0
+    prompt: Optional[str] = None
+    config_json: Optional[dict] = None
+    output_json: Optional[dict] = None
+    status: Optional[NodeStatus] = None
+
+
+class NodeUpdate(BaseModel):
+    title: Optional[str] = None
+    position_x: Optional[float] = None
+    position_y: Optional[float] = None
+    prompt: Optional[str] = None
+    config_json: Optional[dict] = None
+    output_json: Optional[dict] = None
+
+
+class NodePositionsUpdate(BaseModel):
+    positions: list["NodePosition"]
+
+
+class NodePosition(BaseModel):
+    id: int
+    position_x: float
+    position_y: float
+
+
+class EdgeCreate(BaseModel):
+    source_node_id: int
+    target_node_id: int
+
+
+NodePositionsUpdate.model_rebuild()

@@ -15,35 +15,23 @@ export interface ModelListResponse {
   models: ModelEntry[];
 }
 
-export interface NodeCapabilityResponse {
-  node_type: string;
-  capabilities: Capability[];
-  default_capability: Capability | null;
-}
-
-// node → primary capability (与后端 NODE_CAPABILITY 保持一致)
-export const NODE_CAPABILITIES: Record<string, Capability[]> = {
-  product_understanding: ["文字编辑/生成"],
-  selling_point: ["文字编辑/生成"],
-  script: ["文字编辑/生成"],
-  storyboard: ["文字编辑/生成"],
-  prompt: ["文字编辑/生成"],
-  keyframe: ["图片编辑/生成"],
-  video_generation: ["视频编辑/生成"],
-  voiceover: ["文字编辑/生成"],
-};
-
-// 哪些节点支持 user_prompt 自定义 + 一键生成
-export const PROMPT_EDITABLE_NODES = new Set([
-  "product_understanding",
-  "selling_point",
-  "script",
-  "storyboard",
-  "prompt",
-]);
-
 export const CAPABILITY_LABELS: Record<Capability, string> = {
   "文字编辑/生成": "文字编辑/生成",
   "图片编辑/生成": "图片编辑/生成",
   "视频编辑/生成": "视频编辑/生成",
+};
+
+// Free-form node kind → which AI capability to call when generating.
+export type NodeKind = "text" | "image" | "video";
+
+export const KIND_TO_CAPABILITY: Record<NodeKind, Capability> = {
+  text: "文字编辑/生成",
+  image: "图片编辑/生成",
+  video: "视频编辑/生成",
+};
+
+export const KIND_LABELS: Record<NodeKind, string> = {
+  text: "文本",
+  image: "图片",
+  video: "视频",
 };

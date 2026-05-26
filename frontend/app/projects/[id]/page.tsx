@@ -5,30 +5,21 @@ import { useParams, useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Button } from "@/components/ui/button";
 import { WorkflowCanvas } from "@/components/workflow/workflow-canvas";
-import { NodeStepList } from "@/components/workflow/node-step-list";
 import { NodeConfigPanel } from "@/components/workflow/node-config-panel";
-import { RunButton } from "@/components/workflow/run-button";
 import { useProjectStore } from "@/lib/store/project-store";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
 import { useWebSocket } from "@/lib/hooks/use-websocket";
-import { getWorkflowStatus } from "@/lib/api/workflow";
 import { StatusBadge } from "@/components/workflow/status-badge";
-import {
-  ArrowLeft,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
-  Loader2,
-} from "lucide-react";
+import { ArrowLeft, PanelRightClose, PanelRightOpen, Loader2 } from "lucide-react";
 
 export default function WorkflowPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = Number(params.id);
   const { currentProject, isLoading, loadProject } = useProjectStore();
-  const { setNodes, nodes } = useWorkflowStore();
-  const [leftOpen, setLeftOpen] = useState(true);
+  const setGraph = useWorkflowStore((s) => s.setGraph);
+  const reset = useWorkflowStore((s) => s.reset);
+  const nodes = useWorkflowStore((s) => s.nodes);
   const [rightOpen, setRightOpen] = useState(true);
 
   useWebSocket(projectId);
@@ -37,44 +28,16 @@ export default function WorkflowPage() {
     if (projectId) {
       loadProject(projectId);
     }
-  }, [projectId, loadProject]);
+    return () => {
+      reset();
+    };
+  }, [projectId, loadProject, reset]);
 
   useEffect(() => {
-    if (currentProject?.nodes) {
-      setNodes(currentProject.nodes as Parameters<typeof setNodes>[0]);
+    if (currentProject?.id === projectId) {
+      setGraph(currentProject.nodes ?? [], currentProject.edges ?? []);
     }
-  }, [currentProject, setNodes]);
-
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      if (projectId) {
-        try {
-          const status = await getWorkflowStatus(projectId);
-          const workflowNodes = status.nodes as unknown as Parameters<typeof setNodes>[0];
-          if (workflowNodes) setNodes(workflowNodes);
-          if (status.project_status === "processing") {
-            useWorkflowStore.getState().setRunning(true);
-          } else if (
-            status.project_status === "completed" ||
-            status.project_status === "failed" ||
-            status.project_status === "cancelled"
-          ) {
-            useWorkflowStore.getState().setRunning(false);
-            useWorkflowStore.getState().setRunStatus(
-              status.project_status === "completed"
-                ? "completed"
-                : status.project_status === "cancelled"
-                  ? "cancelled"
-                  : "failed"
-            );
-          }
-        } catch {
-          // ignore polling errors
-        }
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [projectId, setNodes]);
+  }, [currentProject, projectId, setGraph]);
 
   if (isLoading || !currentProject) {
     return (
@@ -100,7 +63,6 @@ export default function WorkflowPage() {
     <div className="h-screen flex flex-col bg-background">
       <SiteHeader />
 
-      {/* sub header — project context */}
       <div className="border-b border-border bg-secondary/20">
         <div className="px-6 h-12 flex items-center justify-between gap-4 max-w-[1600px] mx-auto w-full">
           <div className="flex items-center gap-3 min-w-0">
@@ -129,7 +91,7 @@ export default function WorkflowPage() {
             <span className="hidden md:inline-flex items-center gap-3 font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
               <span>
                 <span className="text-foreground tabular-nums">{completedCount}</span>
-                <span className="opacity-60">/{nodes.length || 11}</span> 完成
+                <span className="opacity-60">/{nodes.length}</span> 完成
               </span>
               {runningCount > 0 && (
                 <span className="text-signal flex items-center gap-1.5">
@@ -141,63 +103,30 @@ export default function WorkflowPage() {
                 <span className="text-destructive">{failedCount} 失败</span>
               )}
             </span>
-            <RunButton projectId={projectId} />
           </div>
         </div>
       </div>
 
-      {/* 3-panel layout */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* LEFT — pipeline steps */}
-        {leftOpen ? (
-          <aside className="w-72 border-r border-border bg-sidebar flex flex-col shrink-0">
-            <div className="px-4 h-10 border-b border-border flex items-center justify-between">
-              <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
-                STEPS · 步骤
-              </span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setLeftOpen(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <PanelLeftClose className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-            <NodeStepList />
-          </aside>
-        ) : (
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="absolute left-3 top-3 z-10 border-border bg-card"
-            onClick={() => setLeftOpen(true)}
-          >
-            <PanelLeftOpen className="w-3.5 h-3.5" />
-          </Button>
-        )}
-
-        {/* CENTER — canvas */}
         <main className="flex-1 flex flex-col min-w-0">
           <div className="px-4 h-10 border-b border-border flex items-center justify-between bg-background/40">
             <div className="flex items-center gap-3">
               <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-signal">
-                ◉ CANVAS · 流水线视图
+                ◉ CANVAS · 自由画布
               </span>
               <span className="font-mono text-[10px] tracking-wider uppercase text-muted-foreground hidden sm:inline">
-                只读 · 顺序锁定
+                右键空白处新建 · 拖动连线
               </span>
             </div>
             <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-muted-foreground">
-              SCROLL TO ZOOM · CLICK NODE
+              SCROLL TO ZOOM · DRAG TO PAN
             </span>
           </div>
           <div className="flex-1 relative bg-hairline">
-            <WorkflowCanvas />
+            <WorkflowCanvas projectId={projectId} />
           </div>
         </main>
 
-        {/* RIGHT — config / inspector */}
         {rightOpen ? (
           <aside className="w-96 border-l border-border bg-sidebar flex flex-col shrink-0">
             <div className="px-4 h-10 border-b border-border flex items-center justify-between">

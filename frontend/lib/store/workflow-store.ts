@@ -1,41 +1,84 @@
 import { create } from "zustand";
-import type { WorkflowNode } from "@/lib/types/workflow";
+import type { WorkflowNode, WorkflowEdge } from "@/lib/types/workflow";
 
 interface WorkflowStore {
   nodes: WorkflowNode[];
-  selectedNodeId: number | null;
-  isRunning: boolean;
-  runStatus: "idle" | "running" | "completed" | "failed" | "cancelled";
+  edges: WorkflowEdge[];
+  selectedNodeIds: Set<number>;
 
+  setGraph: (nodes: WorkflowNode[], edges: WorkflowEdge[]) => void;
   setNodes: (nodes: WorkflowNode[]) => void;
-  selectNode: (nodeId: number | null) => void;
-  updateNode: (nodeId: number, updates: Partial<WorkflowNode>) => void;
-  setRunning: (running: boolean) => void;
-  setRunStatus: (status: "idle" | "running" | "completed" | "failed" | "cancelled") => void;
+  setEdges: (edges: WorkflowEdge[]) => void;
+
+  upsertNode: (node: WorkflowNode) => void;
+  removeNode: (nodeId: number) => void;
+  patchNode: (nodeId: number, updates: Partial<WorkflowNode>) => void;
+
+  upsertEdge: (edge: WorkflowEdge) => void;
+  removeEdge: (edgeId: number) => void;
+
+  selectOnly: (nodeId: number) => void;
+  toggleSelect: (nodeId: number) => void;
+  setSelection: (ids: Iterable<number>) => void;
+  clearSelection: () => void;
+
   reset: () => void;
 }
 
 export const useWorkflowStore = create<WorkflowStore>((set) => ({
   nodes: [],
-  selectedNodeId: null,
-  isRunning: false,
-  runStatus: "idle",
+  edges: [],
+  selectedNodeIds: new Set<number>(),
 
+  setGraph: (nodes, edges) => set({ nodes, edges }),
   setNodes: (nodes) => set({ nodes }),
-  selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
-  updateNode: (nodeId, updates) =>
-    set((state) => ({
-      nodes: state.nodes.map((n) =>
-        n.id === nodeId ? { ...n, ...updates } : n
-      ),
-    })),
-  setRunning: (running) => set({ isRunning: running }),
-  setRunStatus: (status) => set({ runStatus: status }),
-  reset: () =>
-    set({
-      nodes: [],
-      selectedNodeId: null,
-      isRunning: false,
-      runStatus: "idle",
+  setEdges: (edges) => set({ edges }),
+
+  upsertNode: (node) =>
+    set((s) => {
+      const idx = s.nodes.findIndex((n) => n.id === node.id);
+      if (idx >= 0) {
+        const next = s.nodes.slice();
+        next[idx] = node;
+        return { nodes: next };
+      }
+      return { nodes: [...s.nodes, node] };
     }),
+
+  removeNode: (nodeId) =>
+    set((s) => {
+      const nextSel = new Set(s.selectedNodeIds);
+      nextSel.delete(nodeId);
+      return {
+        nodes: s.nodes.filter((n) => n.id !== nodeId),
+        edges: s.edges.filter((e) => e.source_node_id !== nodeId && e.target_node_id !== nodeId),
+        selectedNodeIds: nextSel,
+      };
+    }),
+
+  patchNode: (nodeId, updates) =>
+    set((s) => ({
+      nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, ...updates } : n)),
+    })),
+
+  upsertEdge: (edge) =>
+    set((s) => {
+      if (s.edges.some((e) => e.id === edge.id)) return s;
+      return { edges: [...s.edges, edge] };
+    }),
+
+  removeEdge: (edgeId) => set((s) => ({ edges: s.edges.filter((e) => e.id !== edgeId) })),
+
+  selectOnly: (nodeId) => set({ selectedNodeIds: new Set([nodeId]) }),
+  toggleSelect: (nodeId) =>
+    set((s) => {
+      const next = new Set(s.selectedNodeIds);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return { selectedNodeIds: next };
+    }),
+  setSelection: (ids) => set({ selectedNodeIds: new Set(ids) }),
+  clearSelection: () => set({ selectedNodeIds: new Set() }),
+
+  reset: () => set({ nodes: [], edges: [], selectedNodeIds: new Set() }),
 }));

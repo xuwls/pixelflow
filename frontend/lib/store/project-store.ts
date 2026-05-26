@@ -1,18 +1,24 @@
 import { create } from "zustand";
 import type { Project } from "@/lib/types/project";
-import type { WorkflowNode, MediaFile } from "@/lib/types/workflow";
+import type { WorkflowNode, WorkflowEdge, MediaFile } from "@/lib/types/workflow";
 import * as projectsApi from "@/lib/api/projects";
+
+type ProjectDetail = Project & {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  media_files: MediaFile[];
+};
 
 interface ProjectStore {
   projects: Project[];
-  currentProject: (Project & { nodes: unknown[]; media_files: unknown[] }) | null;
+  currentProject: ProjectDetail | null;
   isLoading: boolean;
 
   fetchProjects: () => Promise<void>;
   loadProject: (id: number) => Promise<void>;
   createProject: (name: string, productTitle?: string, productDescription?: string) => Promise<Project>;
   deleteProject: (id: number) => Promise<void>;
-  setCurrentProject: (project: (Project & { nodes: unknown[]; media_files: unknown[] }) | null) => void;
+  setCurrentProject: (project: ProjectDetail | null) => void;
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -29,7 +35,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   loadProject: async (id: number) => {
     set({ isLoading: true });
     const project = await projectsApi.getProject(id);
-    set({ currentProject: project as (Project & { nodes: unknown[]; media_files: unknown[] }), isLoading: false });
+    set({ currentProject: project, isLoading: false });
   },
 
   createProject: async (name, productTitle, productDescription) => {
