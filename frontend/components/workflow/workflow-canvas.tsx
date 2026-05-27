@@ -83,7 +83,7 @@ export const WorkflowCanvas = memo(function WorkflowCanvas({ projectId, initialN
   );
 });
 
-function CanvasInner({ projectId, initialNodes, initialEdges }: WorkflowCanvasProps) {
+const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initialEdges }: WorkflowCanvasProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState(
     initialNodes.map((n) => toRfNode(n))
   );
@@ -347,4 +347,4 @@ function CanvasInner({ projectId, initialNodes, initialEdges }: WorkflowCanvasPr
       />
     </div>
   );
-}
+});
