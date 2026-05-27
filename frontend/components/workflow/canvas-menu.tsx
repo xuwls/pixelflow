@@ -23,19 +23,25 @@ export interface CanvasMenuProps {
 
 export function CanvasMenu({ x, y, items, onClose }: CanvasMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const mountId = useRef(Math.random().toString(36).slice(2, 6));
+  console.log('[CanvasMenu] render', mountId.current, new Date().toISOString());
 
   useEffect(() => {
+    console.log('[CanvasMenu] effect setup', mountId.current);
     function handleDown(e: MouseEvent) {
-      if (!ref.current) return;
-      if (ref.current.contains(e.target as Node)) return;
+      console.log('[CanvasMenu] mousedown', mountId.current, e.target);
+      if (!ref.current) { console.log('[CanvasMenu] no ref'); return; }
+      if (ref.current.contains(e.target as Node)) { console.log('[CanvasMenu] inside menu'); return; }
+      console.log('[CanvasMenu] CLOSING');
       onClose();
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") { console.log('[CanvasMenu] Escape CLOSING'); onClose(); }
     }
     window.addEventListener("mousedown", handleDown);
     window.addEventListener("keydown", handleKey);
     return () => {
+      console.log('[CanvasMenu] effect cleanup', mountId.current);
       window.removeEventListener("mousedown", handleDown);
       window.removeEventListener("keydown", handleKey);
     };
