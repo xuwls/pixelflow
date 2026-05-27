@@ -25,22 +25,19 @@ export function CanvasMenu({ x, y, items, onClose }: CanvasMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    // Delay listener registration to avoid closing on the same event that opened us
-    const timer = setTimeout(() => {
-      function handleDown(e: MouseEvent) {
-        if (!ref.current) return;
-        if (ref.current.contains(e.target as Node)) return;
-        onClose();
-      }
-      function handleKey(e: KeyboardEvent) {
-        if (e.key === "Escape") onClose();
-      }
-      window.addEventListener("mousedown", handleDown);
-      window.addEventListener("keydown", handleKey);
-    }, 0);
-
+    function handleDown(e: MouseEvent) {
+      if (!ref.current) return;
+      if (ref.current.contains(e.target as Node)) return;
+      onClose();
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("mousedown", handleDown);
+    window.addEventListener("keydown", handleKey);
     return () => {
-      clearTimeout(timer);
+      window.removeEventListener("mousedown", handleDown);
+      window.removeEventListener("keydown", handleKey);
     };
   }, [onClose]);
 

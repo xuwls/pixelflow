@@ -253,6 +253,7 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   // ── UI state ───────────────────────────────────────────────────────
   const [menu, setMenu] = useState<MenuState>(null);
   const [editNodeId, setEditNodeId] = useState<number | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: RFNode) => {
     setEditNodeId(Number(node.id));
@@ -338,7 +339,7 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="oklch(0.18 0.01 270 / 0.12)" />
         <Controls showInteractive={false} />
       </ReactFlow>
-      {menu && <CanvasMenu x={menu.screenX} y={menu.screenY} items={menuItems} onClose={() => setMenu(null)} />}
+      {menu && <CanvasMenu x={menu.screenX} y={menu.screenY} items={menuItems} onClose={closeMenu} />}
       <NodeEditDialog
         open={editNodeId !== null}
         onClose={() => setEditNodeId(null)}
