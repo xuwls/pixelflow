@@ -25,7 +25,8 @@ import { KIND_LABELS, type NodeKind } from "@/lib/types/capability";
 import type { WorkflowNode } from "@/lib/types/workflow";
 import * as workflowApi from "@/lib/api/workflow";
 import { toast } from "sonner";
-import { FileText, Image as ImageIcon, Video, Trash2, Play, Merge, Plus } from "lucide-react";
+import { FileText, Image as ImageIcon, Video, Trash2, Play, Merge, Plus, Settings } from "lucide-react";
+import { NodeEditDialog } from "./node-edit-dialog";
 
 const NODE_TYPES = { custom: CustomNode };
 const FIT_VIEW_OPTIONS = { padding: 0.4, maxZoom: 1.1 };
@@ -213,7 +214,9 @@ function CanvasInner({ projectId }: { projectId: number }) {
   // ── other React Flow callbacks ─────────────────────────────────────
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const { screenToFlowPosition } = useReactFlow();
+
   const [menu, setMenu] = useState<MenuState>(null);
+  const [editNodeId, setEditNodeId] = useState<number | null>(null);
 
   const onConnect = useCallback(
     async (connection: Connection) => {
@@ -304,7 +307,61 @@ function CanvasInner({ projectId }: { projectId: number }) {
     [projectId, storeNodes, upsertNode, upsertEdge, addNodeToRf],
   );
 
-  // ── context menu handlers ──────────────────────────────────────────
+  // --- clipboard paste handler ---
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+
+    const onPaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!item.type.startsWith("image/") && !item.type.startsWith("video/")) continue;
+
+        const blob = item.getAsFile();
+        if (!blob) continue;
+
+        e.preventDefault();
+
+        const wrapperRect = el?.getBoundingClientRect();
+        if (!wrapperRect) return;
+        const flowPos = screenToFlowPosition({
+          x: wrapperRect.left + wrapperRect.width / 2,
+          y: wrapperRect.top + wrapperRect.height / 2,
+        });
+
+        const ext = blob.type.split("/")[1] || "png";
+        const file = new File([blob], `paste-${Date.now()}.${ext}`, { type: blob.type });
+
+        try {
+          const result = await workflowApi.pasteNodeAsset(
+            projectId, file, flowPos.x, flowPos.y);
+          upsertNode(result.node);
+          (setRfNodes as any)((prev: any) => [...prev, toRfNode(result.node, false)]);
+          const label = result.node.kind === "image" ? "图片" : "视频";
+          toast.success(`已粘贴${label}素材`);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "粘贴失败");
+        }
+        break;
+      }
+    };
+
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [projectId, screenToFlowPosition, upsertNode, setRfNodes]);
+
+  // --- node click handler ---
+  const handleNodeClick = useCallback(
+    (_event: React.MouseEvent, node: RFNode) => {
+      setEditNodeId(Number(node.id));
+    },
+    [],
+  );
+
+  // --- context menu handlers --- ──────────────────────────────────────────
   const handlePaneContextMenu = useCallback(
     (event: React.MouseEvent | MouseEvent) => {
       event.preventDefault();
@@ -406,6 +463,14 @@ function CanvasInner({ projectId }: { projectId: number }) {
           children: buildKindItems((k) => createNodeAt(k, continueX, continueY, node.id)),
         },
         {
+          key: "edit",
+          label: "编辑",
+          icon: <Settings className="w-3.5 h-3.5" />,
+          onSelect: () => {
+            if (menu && menu.type === "node") setEditNodeId(menu.nodeId);
+          },
+        },
+        {
           key: "run",
           label: "运行此节点",
           icon: <Play className="w-3.5 h-3.5" />,
@@ -476,6 +541,7 @@ function CanvasInner({ projectId }: { projectId: number }) {
         onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
         onSelectionChange={onSelectionChange}
+        onNodeClick={handleNodeClick}
         onPaneContextMenu={handlePaneContextMenu}
         onNodeContextMenu={handleNodeContextMenu}
         onSelectionContextMenu={handleSelectionContextMenu}
@@ -505,6 +571,13 @@ function CanvasInner({ projectId }: { projectId: number }) {
           onClose={() => setMenu(null)}
         />
       )}
+      <NodeEditDialog
+        open={editNodeId !== null}
+        onClose={() => setEditNodeId(null)}
+        projectId={projectId}
+        node={editNodeId !== null ? storeNodes.find((n) => n.id === editNodeId) ?? null : null}
+      />
+
     </div>
   );
 }

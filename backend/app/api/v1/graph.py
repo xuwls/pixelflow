@@ -1,6 +1,7 @@
+import mimetypes
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +15,7 @@ from app.schemas.project import (
     NodePositionsUpdate,
     NodeResponse,
     NodeUpdate,
+    PasteNodeResponse,
 )
 from app.services.storage import storage_service
 
@@ -201,6 +203,108 @@ async def get_node_asset(project_id: int, node_id: int, db: AsyncSession = GetDB
 
 
 # ── edges ─────────────────────────────────────────────────────────────
+
+# ??? paste node (clipboard upload) ??????????????????????????????????????
+
+
+@router.post("/{project_id}/nodes/paste", response_model=PasteNodeResponse)
+async def paste_node(
+    project_id: int,
+    file: UploadFile,
+    position_x: float = Form(default=0.0),
+    position_y: float = Form(default=0.0),
+    db: AsyncSession = GetDB,
+):
+    """Paste a file from clipboard as a new source-asset node.
+
+    Auto-detects kind from mime type, uploads to MinIO, creates the node,
+    and returns both node and media record in one shot.
+    """
+    project = (
+        await db.execute(select(Project).where(Project.id == project_id))
+    ).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    content_data = await file.read()
+    content_type = file.content_type or "application/octet-stream"
+    kind = _kind_from_mime(content_type)
+    ext = _ext_from_mime(content_type, file.filename)
+    title = _title_from_kind(kind, file.filename)
+
+    # Create node first to get its id
+    node = WorkflowNode(
+        project_id=project_id,
+        kind=kind,
+        title=title,
+        position_x=position_x,
+        position_y=position_y,
+        status="idle",
+        config_json={},
+    )
+    db.add(node)
+    await db.flush()
+
+    # Upload file to MinIO
+    object_key = f"projects/{project_id}/nodes/{node.id}/asset{ext}"
+    await storage_service.upload_bytes(object_key, content_data, content_type)
+
+    # Build output_json matching the shape other nodes expect
+    if kind == "image":
+        output = {"images": [{"url": object_key, "width": 0, "height": 0}]}
+    elif kind == "video":
+        output = {"videos": [{"url": object_key, "width": 0, "height": 0, "duration_sec": 0}]}
+    else:
+        output = {"text": ""}
+
+    node.output_json = output
+    node.status = "completed"
+    node.completed_at = datetime.now(timezone.utc)
+
+    # Record media for tracking
+    media = MediaFile(
+        project_id=project_id,
+        node_id=node.id,
+        file_type=kind,
+        file_name=file.filename or f"paste{ext}",
+        file_url=object_key,
+        mime_type=content_type,
+        file_size=len(content_data),
+    )
+    db.add(media)
+
+    await db.commit()
+    await db.refresh(node)
+    await db.refresh(media)
+
+    return PasteNodeResponse(node=node, media=media)
+
+
+def _kind_from_mime(mime: str) -> str:
+    if mime.startswith("image/"):
+        return "image"
+    if mime.startswith("video/"):
+        return "video"
+    return "image"  # fallback
+
+
+def _ext_from_mime(mime: str, filename: str | None) -> str:
+    ext = mimetypes.guess_extension(mime) or ""
+    if not ext and filename:
+        dot = filename.rfind(".")
+        if dot != -1:
+            ext = filename[dot:]
+    return ext or ".png"
+
+
+def _title_from_kind(kind: str, filename: str | None) -> str:
+    labels = {"image": "????", "video": "????", "text": "??"}
+    base = labels.get(kind, "??")
+    if filename:
+        return f"{base}: {filename}"
+    return base
+
+
 
 
 @router.post("/{project_id}/edges", response_model=EdgeResponse, status_code=201)

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -116,6 +116,14 @@ class NodePosition(BaseModel):
 class EdgeCreate(BaseModel):
     source_node_id: int
     target_node_id: int
+
+
+
+class PasteNodeResponse(BaseModel):
+    node: NodeResponse
+    media: Optional[MediaResponse] = None
+
+    model_config = {"from_attributes": True}
 
 
 NodePositionsUpdate.model_rebuild()

@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Button } from "@/components/ui/button";
 import { WorkflowCanvas } from "@/components/workflow/workflow-canvas";
-import { NodeConfigPanel } from "@/components/workflow/node-config-panel";
 import { useProjectStore } from "@/lib/store/project-store";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
 import { useWebSocket } from "@/lib/hooks/use-websocket";
 import { StatusBadge } from "@/components/workflow/status-badge";
-import { ArrowLeft, PanelRightClose, PanelRightOpen, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 export default function WorkflowPage() {
   const params = useParams();
@@ -20,8 +19,7 @@ export default function WorkflowPage() {
   const setGraph = useWorkflowStore((s) => s.setGraph);
   const reset = useWorkflowStore((s) => s.reset);
   const nodes = useWorkflowStore((s) => s.nodes);
-  const [rightOpen, setRightOpen] = useState(true);
-
+  
   useWebSocket(projectId);
 
   useEffect(() => {
@@ -127,35 +125,6 @@ export default function WorkflowPage() {
           </div>
         </main>
 
-        {rightOpen ? (
-          <aside className="w-96 border-l border-border bg-sidebar flex flex-col shrink-0">
-            <div className="px-4 h-10 border-b border-border flex items-center justify-between">
-              <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
-                CONFIG · 配置
-              </span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setRightOpen(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <PanelRightClose className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <NodeConfigPanel projectId={projectId} />
-            </div>
-          </aside>
-        ) : (
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="absolute right-3 top-3 z-10 border-border bg-card"
-            onClick={() => setRightOpen(true)}
-          >
-            <PanelRightOpen className="w-3.5 h-3.5" />
-          </Button>
-        )}
       </div>
     </div>
   );

@@ -83,3 +83,21 @@ export function cancelAllWorkflows(): Promise<{ cancelled_count: number }> {
 export function getNodeAsset(projectId: number, nodeId: number): Promise<MediaFile> {
   return apiFetch(`/projects/${projectId}/nodes/${nodeId}/asset`);
 }
+
+export interface PasteNodeResult {
+  node: WorkflowNode;
+  media: MediaFile | null;
+}
+
+export function pasteNodeAsset(
+  projectId: number,
+  file: File,
+  positionX: number,
+  positionY: number,
+): Promise<PasteNodeResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("position_x", String(positionX));
+  fd.append("position_y", String(positionY));
+  return apiUpload(`/projects/${projectId}/nodes/paste`, fd);
+}
