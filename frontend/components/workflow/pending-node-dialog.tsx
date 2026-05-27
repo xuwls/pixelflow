@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -15,8 +13,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { listModels } from "@/lib/api/models";
 import {
@@ -26,16 +22,16 @@ import {
   type NodeKind,
 } from "@/lib/types/capability";
 import { toast } from "sonner";
-import { Check, X } from "lucide-react";
+import { FileText, Image as ImageIcon, Video, Sparkles, X } from "lucide-react";
 
-// ── aspect ratio + resolution presets ──────────────────────────
+// ── presets ────────────────────────────────────────────────────
 
 interface AspectPreset { label: string; w: number; h: number; }
 
 const ASPECT_RATIOS: AspectPreset[] = [
   { label: "16:9", w: 16, h: 9 },
-  { label: "1:1",  w: 1,  h: 1 },
-  { label: "9:16", w: 9,  h: 16 },
+  { label: "1:1", w: 1, h: 1 },
+  { label: "9:16", w: 9, h: 16 },
 ];
 
 interface ResolutionPreset { label: string; base: number; vip?: boolean; }
@@ -51,7 +47,7 @@ const IMAGE_RESOLUTIONS: ResolutionPreset[] = [
   { label: "2K", base: 2048 },
 ];
 
-function computeDims(aspectW: number, aspectH: number, baseRes: number): { w: number; h: number } {
+function computeDims(aspectW: number, aspectH: number, baseRes: number) {
   if (aspectW > aspectH) return { w: Math.round(baseRes * aspectW / aspectH), h: baseRes };
   if (aspectH > aspectW) return { w: baseRes, h: Math.round(baseRes * aspectH / aspectW) };
   return { w: baseRes, h: baseRes };
@@ -61,7 +57,6 @@ function computeDims(aspectW: number, aspectH: number, baseRes: number): { w: nu
 
 function useModelsForKind(kind: NodeKind | undefined): { models: ModelEntry[]; loading: boolean } {
   const [state, setState] = useState<{ kind: NodeKind | null; models: ModelEntry[] }>({ kind: null, models: [] });
-
   useEffect(() => {
     if (!kind) return;
     let cancelled = false;
@@ -71,9 +66,16 @@ function useModelsForKind(kind: NodeKind | undefined): { models: ModelEntry[]; l
       .catch(() => { if (!cancelled) { setState({ kind, models: [] }); toast.error("加载模型列表失败"); } });
     return () => { cancelled = true; };
   }, [kind]);
-
   return { models: state.kind === kind ? state.models : [], loading: state.kind !== kind };
 }
+
+// ── mode config ────────────────────────────────────────────────
+
+const MODES: { kind: NodeKind; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
+  { kind: "video", icon: Video, label: "视频" },
+  { kind: "image", icon: ImageIcon, label: "图片" },
+  { kind: "text",  icon: FileText, label: "文本" },
+];
 
 // ── props ─────────────────────────────────────────────────────
 
@@ -92,17 +94,24 @@ interface PendingNodeDialogProps {
   onCancel: () => void;
 }
 
-export function PendingNodeDialog({ open, kind, sourceCount, onConfirm, onCancel }: PendingNodeDialogProps) {
-  const [title, setTitle] = useState("");
+export function PendingNodeDialog({ open, kind: initialKind, sourceCount, onConfirm, onCancel }: PendingNodeDialogProps) {
+  const [kind, setKind] = useState<NodeKind>(initialKind);
   const [prompt, setPrompt] = useState("");
-  const [width, setWidth] = useState(kind === "video" ? 1080 : 1024);
-  const [height, setHeight] = useState(kind === "video" ? 1920 : 1024);
+  const [width, setWidth] = useState(initialKind === "video" ? 1080 : 1024);
+  const [height, setHeight] = useState(initialKind === "video" ? 1920 : 1024);
   const [durationSec, setDurationSec] = useState(5);
   const [soundEffects, setSoundEffects] = useState(true);
   const [multiShot, setMultiShot] = useState(true);
   const [modelKey, setModelKey] = useState("");
 
   const { models, loading: loadingModels } = useModelsForKind(kind);
+
+  // reset dims when kind changes
+  useEffect(() => {
+    setWidth(kind === "video" ? 1080 : 1024);
+    setHeight(kind === "video" ? 1920 : 1024);
+    setModelKey("");
+  }, [kind]);
 
   // auto-select default model
   useEffect(() => {
@@ -112,6 +121,7 @@ export function PendingNodeDialog({ open, kind, sourceCount, onConfirm, onCancel
     }
   }, [models, modelKey]);
 
+  const isGen = kind === "image" || kind === "video";
   const curShortSide = Math.min(width, height);
   const curAspectKey = (() => {
     const r = width / height;
@@ -122,235 +132,212 @@ export function PendingNodeDialog({ open, kind, sourceCount, onConfirm, onCancel
 
   function handleAspect(aspect: AspectPreset) {
     const { w, h } = computeDims(aspect.w, aspect.h, curShortSide || 1024);
-    setWidth(w);
-    setHeight(h);
+    setWidth(w); setHeight(h);
   }
 
   function handleResolution(res: ResolutionPreset) {
     const cur = ASPECT_RATIOS.find((a) => a.label === curAspectKey) ?? ASPECT_RATIOS[0];
     const { w, h } = computeDims(cur.w, cur.h, res.base);
-    setWidth(w);
-    setHeight(h);
+    setWidth(w); setHeight(h);
   }
 
   function handleConfirm() {
+    if (!modelKey || !prompt.trim()) return;
     const [provider, model_name] = modelKey.split(":");
     const selectedModel = models.find((m) => m.provider === provider && m.model_name === model_name);
     onConfirm({
       kind,
-      title: title.trim() || undefined as unknown as string,
+      title: "",
       prompt: prompt.trim(),
       config_json: {
         model: { provider, model_name, display_name: selectedModel?.display_name },
-        width,
-        height,
+        width, height,
         ...(kind === "video" ? { duration_sec: durationSec, sound_effects: soundEffects, multi_shot: multiShot } : {}),
       },
     });
   }
 
-  const isGen = kind === "image" || kind === "video";
-  const hasPrompt = Boolean(prompt.trim());
-
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel(); }}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
-        {/* header */}
-        <DialogHeader className="px-4 pt-4 pb-3 border-b border-border/40 bg-secondary/10 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="accent-dot" />
-            <DialogTitle className="font-mono text-[10px] tracking-[0.25em] uppercase text-signal">
-              新建{KIND_LABELS[kind]}节点
-            </DialogTitle>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 rounded-2xl">
+        
+        {/* ── header: mode tabs ─────────────────────────────── */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div className="flex items-center gap-1 bg-secondary/60 rounded-xl p-1">
+            {MODES.map((m) => {
+              const Icon = m.icon;
+              const active = kind === m.kind;
+              return (
+                <button
+                  key={m.kind}
+                  onClick={() => setKind(m.kind)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-[10px] text-sm transition-all ${
+                    active
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="font-medium">{m.label}</span>
+                </button>
+              );
+            })}
           </div>
-          <p className="font-mono text-[10px] tracking-wider uppercase text-muted-foreground mt-1">
-            引用 {sourceCount} 个素材
-          </p>
-        </DialogHeader>
+          <button onClick={onCancel} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-        {/* body */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {/* title */}
-          <section className="space-y-1.5">
-            <Label className="text-[10px] font-mono tracking-[0.15em] uppercase text-muted-foreground/70">
-              标题
-            </Label>
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="给节点起个名字 (可选)"
-              className="bg-background border-border"
-            />
-          </section>
+        {/* ── body ──────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto px-5 space-y-5 pb-2">
 
-          {/* prompt */}
-          <section className="space-y-1.5">
-            <Label className="text-[10px] font-mono tracking-[0.15em] uppercase text-muted-foreground/70">
-              提示词
-            </Label>
-            <Textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={4}
-              placeholder="描述你想要生成的画面…"
-              className="bg-background border-border font-mono text-[12px] leading-relaxed resize-none"
-            />
-          </section>
+          {/* model selector */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground font-medium">模型</p>
+            {loadingModels ? (
+              <div className="h-10 rounded-xl border border-border/60 bg-secondary/30 flex items-center px-3 text-sm text-muted-foreground">加载中…</div>
+            ) : (
+              <Select value={modelKey} onValueChange={(v) => v && setModelKey(v)}>
+                <SelectTrigger className="h-10 rounded-xl bg-secondary/30 border-border/60 hover:bg-secondary/50 transition-colors">
+                  <SelectValue placeholder="选择模型" />
+                </SelectTrigger>
+                <SelectContent>
+                  {models.map((m) => (
+                    <SelectItem key={`${m.provider}:${m.model_name}`} value={`${m.provider}:${m.model_name}`}>
+                      <span>{m.display_name}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{m.provider}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
 
-          {/* params (gen only) */}
+          {/* parameters (gen modes only) */}
           {isGen && (
             <>
               {/* aspect ratio */}
-              <section className="space-y-1.5">
-                <span className="text-[10px] font-mono tracking-[0.15em] uppercase text-muted-foreground/70">比例</span>
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground font-medium">比例</p>
                 <div className="grid grid-cols-3 gap-2">
                   {ASPECT_RATIOS.map((ar) => {
                     const active = curAspectKey === ar.label;
                     return (
-                      <button
-                        key={ar.label}
-                        type="button"
-                        onClick={() => handleAspect(ar)}
-                        className={`flex flex-col items-center gap-0.5 py-2 rounded-lg border transition-all ${
-                          active ? "border-signal bg-signal/8 text-signal" : "border-border/40 bg-background text-muted-foreground hover:border-border"
+                      <button key={ar.label} type="button" onClick={() => handleAspect(ar)}
+                        className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-all ${
+                          active ? "border-signal bg-signal/5 text-signal" : "border-border/40 bg-secondary/20 text-muted-foreground hover:border-border/60"
                         }`}
                       >
-                        <div className="border border-current rounded-sm opacity-50" style={{
-                          width: ar.w > ar.h ? 24 : ar.w === ar.h ? 16 : 14,
-                          height: ar.h > ar.w ? 24 : ar.w === ar.h ? 16 : 14,
+                        <div className="border border-current rounded-sm opacity-40" style={{
+                          width: ar.w > ar.h ? 20 : ar.w === ar.h ? 14 : 12,
+                          height: ar.h > ar.w ? 20 : ar.w === ar.h ? 14 : 12,
                         }} />
-                        <span className="text-[10px] font-mono tracking-wider">{ar.label}</span>
+                        <span className="text-xs font-medium">{ar.label}</span>
                       </button>
                     );
                   })}
                 </div>
-              </section>
+              </div>
 
               {/* resolution */}
-              <section className="space-y-1.5">
-                <span className="text-[10px] font-mono tracking-[0.15em] uppercase text-muted-foreground/70">分辨率</span>
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground font-medium">分辨率</p>
                 <div className={kind === "video" ? "grid grid-cols-2 gap-2" : "grid grid-cols-3 gap-2"}>
                   {(kind === "video" ? VIDEO_RESOLUTIONS : IMAGE_RESOLUTIONS).map((res) => {
                     const active = curShortSide === res.base;
                     return (
-                      <button
-                        key={res.label}
-                        type="button"
-                        onClick={() => handleResolution(res)}
-                        className={`relative flex items-center justify-center py-2 rounded-lg border transition-all ${
-                          active ? "border-signal bg-signal/8 text-signal" : "border-border/40 bg-background text-muted-foreground hover:border-border"
+                      <button key={res.label} type="button" onClick={() => handleResolution(res)}
+                        className={`relative flex items-center justify-center py-2.5 rounded-xl border transition-all ${
+                          active ? "border-signal bg-signal/5 text-signal" : "border-border/40 bg-secondary/20 text-muted-foreground hover:border-border/60"
                         }`}
                       >
-                        <span className="text-[11px] font-mono tracking-wider">{res.label}</span>
+                        <span className="text-sm font-medium">{res.label}</span>
                         {res.vip && (
-                          <span className="absolute -top-1.5 -right-1.5 text-[8px] px-1 py-0.5 rounded-sm bg-amber-400 text-amber-900 font-bold leading-none shadow-sm">VIP</span>
+                          <span className="absolute -top-1.5 -right-1.5 text-[8px] px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-900 font-bold shadow-sm">VIP</span>
                         )}
                       </button>
                     );
                   })}
                 </div>
-              </section>
+              </div>
 
               {/* duration slider (video only) */}
               {kind === "video" && (
-                <section className="space-y-1.5">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono tracking-[0.15em] uppercase text-muted-foreground/70">时长</span>
-                    <span className="text-[11px] font-mono text-signal/80">{durationSec}s</span>
+                    <p className="text-xs text-muted-foreground font-medium">时长</p>
+                    <span className="text-sm font-mono text-foreground/70">{durationSec}s</span>
                   </div>
-                  <input
-                    type="range"
-                    min={1} max={15} step={1}
-                    value={durationSec}
+                  <input type="range" min={1} max={15} step={1} value={durationSec}
                     onChange={(e) => setDurationSec(Number(e.target.value))}
-                    className="w-full h-1.5 rounded-full appearance-none bg-border/50 cursor-pointer
+                    className="w-full h-1.5 rounded-full appearance-none bg-border/40 cursor-pointer
                       [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
                       [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-signal
                       [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:cursor-pointer
                       [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full
                       [&::-moz-range-thumb]:bg-signal [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
                   />
-                  <div className="flex justify-between text-[9px] font-mono text-muted-foreground/40">
-                    <span>1s</span><span>15s</span>
-                  </div>
-                </section>
+                </div>
               )}
 
               {/* advanced toggles (video only) */}
               {kind === "video" && (
-                <section className="space-y-1.5">
-                  <span className="text-[10px] font-mono tracking-[0.15em] uppercase text-muted-foreground/70">高级设置</span>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground font-medium">高级</p>
                   <ToggleRow label="音效" hint="自动生成配音或环境音" active={soundEffects} onToggle={() => setSoundEffects((v) => !v)} />
                   <ToggleRow label="多镜头" hint="AI 生成分镜头多机位视频" active={multiShot} onToggle={() => setMultiShot((v) => !v)} />
-                </section>
+                </div>
               )}
-
-              {/* model */}
-              <section className="space-y-1.5">
-                <span className="text-[10px] font-mono tracking-[0.15em] uppercase text-muted-foreground/70">模型</span>
-                {loadingModels ? (
-                  <div className="h-9 rounded-md border border-border bg-background flex items-center px-3 text-xs text-muted-foreground">加载中…</div>
-                ) : models.length === 0 ? (
-                  <div className="h-9 rounded-md border border-dashed border-border bg-background flex items-center px-3 text-xs text-muted-foreground">暂无模型</div>
-                ) : (
-                  <Select value={modelKey} onValueChange={(v) => v && setModelKey(v)}>
-                    <SelectTrigger className="bg-background border-border w-full">
-                      <SelectValue placeholder="选择模型" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {models.map((m) => (
-                        <SelectItem key={`${m.provider}:${m.model_name}`} value={`${m.provider}:${m.model_name}`}>
-                          <div className="flex flex-col">
-                            <span className="text-xs">{m.display_name}</span>
-                            <span className="font-mono text-[9px] text-muted-foreground">{m.provider} / {m.model_name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </section>
             </>
           )}
+
+          {/* prompt */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground font-medium">
+              提示词
+              {sourceCount > 0 && <span className="ml-1 text-signal/70">· 引用 {sourceCount} 个素材</span>}
+            </p>
+            <Textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              rows={4}
+              placeholder="描述你想要生成的内容…"
+              className="min-h-[100px] rounded-xl bg-secondary/20 border-border/40 resize-none text-sm leading-relaxed placeholder:text-muted-foreground/50 focus:bg-secondary/30 transition-colors"
+            />
+          </div>
         </div>
 
-        {/* footer */}
-        <div className="px-4 py-3 border-t border-border/40 bg-secondary/10 grid grid-cols-2 gap-2 shrink-0">
-          <Button
-            size="sm"
-            onClick={handleConfirm}
-            disabled={!hasPrompt || !modelKey}
-            className="bg-signal text-signal-foreground hover:bg-signal/90 font-mono text-xs tracking-wider gap-1.5"
-          >
-            <Check className="w-3.5 h-3.5" />
-            确认创建
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onCancel}
-            className="font-mono text-xs tracking-wider gap-1.5 border-border"
-          >
-            <X className="w-3.5 h-3.5" />
+        {/* ── footer ────────────────────────────────────────── */}
+        <div className="flex items-center gap-3 px-5 py-4 border-t border-border/30">
+          <Button variant="ghost" size="sm" onClick={onCancel}
+            className="text-muted-foreground hover:text-foreground rounded-xl">
             取消
           </Button>
+          <div className="flex-1" />
+          <Button size="sm" onClick={handleConfirm}
+            disabled={!modelKey || !prompt.trim()}
+            className="rounded-xl bg-foreground text-background hover:bg-foreground/90 font-medium gap-2 px-5">
+            <Sparkles className="w-4 h-4" />
+            创建
+          </Button>
         </div>
+
       </DialogContent>
     </Dialog>
   );
 }
 
+// ── toggle ─────────────────────────────────────────────────────
+
 function ToggleRow({ label, hint, active, onToggle }: { label: string; hint: string; active: boolean; onToggle: () => void }) {
   return (
     <div className="flex items-center justify-between py-1">
       <div className="flex items-center gap-1.5">
-        <span className="text-[11px] text-foreground/80">{label}</span>
-        <span className="text-[10px] text-muted-foreground/50 cursor-help" title={hint}>?</span>
+        <span className="text-sm text-foreground/80">{label}</span>
+        <span className="text-xs text-muted-foreground/50 cursor-help" title={hint}>?</span>
       </div>
-      <button
-        type="button" role="switch" aria-checked={active} onClick={onToggle}
-        className={`relative w-9 h-5 rounded-full transition-colors ${active ? "bg-signal" : "bg-border/50"}`}
-      >
+      <button type="button" role="switch" aria-checked={active} onClick={onToggle}
+        className={`relative w-9 h-5 rounded-full transition-colors ${active ? "bg-signal" : "bg-border/50"}`}>
         <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${active ? "left-[18px]" : "left-0.5"}`} />
       </button>
     </div>

@@ -65,8 +65,7 @@ function toRfEdge(e: { id: number; source_node_id: number; target_node_id: numbe
 
 interface PaneMenuState { type: "pane"; screenX: number; screenY: number; flowX: number; flowY: number; }
 interface NodeMenuState { type: "node"; screenX: number; screenY: number; nodeId: number; }
-interface SelectionMenuState { type: "selection"; screenX: number; screenY: number; nodeIds: number[]; }
-type MenuState = PaneMenuState | NodeMenuState | SelectionMenuState | null;
+type MenuState = PaneMenuState | NodeMenuState | null;
 
 // ── component ────────────────────────────────────────────────────────
 
@@ -329,7 +328,9 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
       setSelectedNodeIds(ids);
       // select them in ReactFlow too
       setRfNodes((prev) => prev.map((n) => ({ ...n, selected: ids.includes(Number(n.id)) })));
-      setMenu({ type: "selection", screenX: e.clientX, screenY: e.clientY, nodeIds: ids });
+      // open edit dialog directly — no intermediate menu
+      setPendingPos(null);
+      setPendingKind("video");
     }
     e.preventDefault();
   }, [rbSelecting, screenToFlowPosition, rfNodes, setRfNodes]);
@@ -348,8 +349,6 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   const handlePaneContextMenu = useCallback(
     (event: React.MouseEvent | MouseEvent) => {
       event.preventDefault();
-      // don't overwrite drag-selection menu
-      if (menu?.type === "selection") return;
       const flow = screenToFlowPosition({
         x: (event as MouseEvent).clientX,
         y: (event as MouseEvent).clientY,
@@ -362,7 +361,7 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
         flowY: flow.y,
       });
     },
-    [screenToFlowPosition, menu],
+    [screenToFlowPosition],
   );
 
   const handleNodeContextMenu = useCallback(
@@ -430,35 +429,18 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   );
 
   // ── menu building ──────────────────────────────────────────────────
-  const buildKindItems = (onPick: (k: NodeKind) => void): MenuItem[] => [
-    { key: "text", label: KIND_LABELS.text, icon: <FileText className="w-3.5 h-3.5" />, onSelect: () => onPick("text") },
-    { key: "image", label: KIND_LABELS.image, icon: <ImageIcon className="w-3.5 h-3.5" />, onSelect: () => onPick("image") },
-    { key: "video", label: KIND_LABELS.video, icon: <Video className="w-3.5 h-3.5" />, onSelect: () => onPick("video") },
-  ];
 
   const menuItems: MenuItem[] = useMemo(() => {
     if (!menu) return [];
-    if (menu.type === "selection") {
-      const selIds = menu.nodeIds;
-      return [{
-        key: "gen", label: `选中 ${selIds.length} 个节点 → 生成`, icon: <Plus className="w-3.5 h-3.5" />,
-        children: buildKindItems((k) => {
-          pendingSourceRef.current = selIds;
-          setSelectedNodeIds(selIds);
-          setPendingPos(null);
-          setPendingKind(k);
-        }),
-      }];
-    }
     if (menu.type === "pane") {
       return [{
         key: "create", label: "新建节点", icon: <Plus className="w-3.5 h-3.5" />,
-        children: buildKindItems((k) => {
+        onSelect: () => {
           setPendingPos({ x: menu.flowX, y: menu.flowY });
           setSelectedNodeIds([]);
           pendingSourceRef.current = [];
-          setPendingKind(k);
-        }),
+          setPendingKind("video");
+        },
       }];
     }
     if (menu.type === "node") {
@@ -466,12 +448,12 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
       if (!node) return [];
       const canRun = Boolean(node.data.prompt && node.data.prompt.trim());
       return [
-        { key: "continue", label: "继续 · 自动连线", icon: <Plus className="w-3.5 h-3.5" />, children: buildKindItems((k) => {
+        { key: "continue", label: "继续 · 自动连线", icon: <Plus className="w-3.5 h-3.5" />, onSelect: () => {
           setPendingPos({ x: node.position.x + 320, y: node.position.y });
           setSelectedNodeIds([menu.nodeId]);
           pendingSourceRef.current = [menu.nodeId];
-          setPendingKind(k);
-        }) },
+          setPendingKind("video");
+        } },
         { key: "edit", label: "编辑", icon: <Settings className="w-3.5 h-3.5" />, onSelect: () => setEditNodeId(menu.nodeId) },
         { key: "run", label: "运行此节点", icon: <Play className="w-3.5 h-3.5" />, disabled: !canRun || node.data.status === "running", onSelect: async () => {
           try { await workflowApi.runNode(projectId, menu.nodeId); toast.success("已开始运行"); } catch (err) { toast.error(err instanceof Error ? err.message : "运行失败"); }
