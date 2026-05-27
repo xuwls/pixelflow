@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ export default function WorkflowPage() {
   useWebSocket(projectId);
 
   // Track whether we've ever loaded this project — prevents unmounting canvas
-  const projectLoaded = useRef(false);
+  const [projectLoaded, setProjectLoaded] = useState(false);
   const projectIdRef = useRef(projectId);
 
   useEffect(() => {
@@ -38,18 +38,18 @@ export default function WorkflowPage() {
   useEffect(() => {
     if (currentProject?.id === projectId) {
       setGraph(currentProject.nodes ?? [], currentProject.edges ?? []);
-      projectLoaded.current = true;
+      setProjectLoaded(true);
       projectIdRef.current = projectId;
     }
   }, [currentProject, projectId, setGraph]);
 
   // Reset loaded flag when project changes
   if (projectId !== projectIdRef.current) {
-    projectLoaded.current = false;
+    setProjectLoaded(false);
     projectIdRef.current = projectId;
   }
 
-  const showLoading = !projectLoaded.current;
+  const showLoading = !projectLoaded;
 
   const completedCount = nodes.filter((n) => n.status === "completed").length;
   const runningCount = nodes.filter((n) => n.status === "running").length;

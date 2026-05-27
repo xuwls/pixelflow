@@ -99,6 +99,18 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   const upsertEdge = useWorkflowStore((s) => s.upsertEdge);
   const removeEdge = useWorkflowStore((s) => s.removeEdge);
 
+  // One-time sync from Zustand if canvas initialized before data arrived
+  const graphLoaded = useWorkflowStore((s) => s.graphLoaded);
+  const didSync = useRef(false);
+  useEffect(() => {
+    if (graphLoaded && !didSync.current && rfNodes.length === 0) {
+      const store = useWorkflowStore.getState();
+      setRfNodes(store.nodes.map((n) => toRfNode(n)));
+      setRfEdges(store.edges.map((e) => toRfEdge(e, store.nodes)));
+      didSync.current = true;
+    }
+  }, [graphLoaded, rfNodes.length, setRfNodes, setRfEdges]);
+
   // ── handlers ───────────────────────────────────────────────────────
 
   const handleNodesChange = useCallback(
