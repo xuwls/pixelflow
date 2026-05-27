@@ -25,8 +25,9 @@ import { KIND_LABELS, type NodeKind } from "@/lib/types/capability";
 import type { WorkflowNode } from "@/lib/types/workflow";
 import * as workflowApi from "@/lib/api/workflow";
 import { toast } from "sonner";
-import { FileText, Image as ImageIcon, Video, Trash2, Play, Merge, Plus, Settings } from "lucide-react";
+import { FileText, Image as ImageIcon, Video, Trash2, Play, Plus, Settings } from "lucide-react";
 import { NodeEditDialog } from "./node-edit-dialog";
+import { PendingNodeDialog, type PendingNodeConfig } from "./pending-node-dialog";
 
 const NODE_TYPES = { custom: CustomNode };
 const DELETE_KEY_CODE: string[] = ["Delete", "Backspace"];
@@ -114,7 +115,7 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   // ── handlers ───────────────────────────────────────────────────────
 
   const handleNodesChange = useCallback(
-    (changes: NodeChange[]) => {
+    (changes: NodeChange<RFNode<CustomNodeData>>[]) => {
       for (const c of changes) {
         if (c.type === "remove" && typeof c.id === "string") {
           const id = Number(c.id);
@@ -139,7 +140,7 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   );
 
   const handleEdgesChange = useCallback(
-    (changes: EdgeChange[]) => {
+    (changes: EdgeChange<RFEdge>[]) => {
       for (const c of changes) {
         if (c.type === "remove" && typeof c.id === "string") {
           const id = Number(c.id);
@@ -265,15 +266,90 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   // ── UI state ───────────────────────────────────────────────────────
   const [menu, setMenu] = useState<MenuState>(null);
   const [editNodeId, setEditNodeId] = useState<number | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<number[]>([]);
+  const [pendingKind, setPendingKind] = useState<NodeKind | null>(null);
+  const [pendingPos, setPendingPos] = useState<{ x: number; y: number } | null>(null);
+  const pendingSourceRef = useRef<number[]>([]);
   const closeMenu = useCallback(() => setMenu(null), []);
 
-  const handleNodeClick = useCallback((_event: React.MouseEvent, node: RFNode) => {
-    setEditNodeId(Number(node.id));
+  // ── right-click drag box-select ────────────────────────────────────
+  const [rbSelecting, setRbSelecting] = useState(false);
+  const [rbRect, setRbRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const rbStart = useRef<{ sx: number; sy: number } | null>(null);
+  const rbMoved = useRef(false);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 2) return;
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    rbStart.current = { sx: e.clientX, sy: e.clientY };
+    rbMoved.current = false;
+    setRbSelecting(true);
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!rbSelecting || !rbStart.current) return;
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x1 = rbStart.current.sx;
+    const y1 = rbStart.current.sy;
+    const x2 = e.clientX;
+    const y2 = e.clientY;
+    const dx = Math.abs(x2 - x1);
+    const dy = Math.abs(y2 - y1);
+    if (dx > 3 || dy > 3) rbMoved.current = true;
+    setRbRect({
+      x: Math.min(x1, x2) - rect.left,
+      y: Math.min(y1, y2) - rect.top,
+      w: dx,
+      h: dy,
+    });
+  }, [rbSelecting]);
+
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 2 || !rbSelecting) return;
+    const savedStart = rbStart.current; // capture before nullifying
+    setRbSelecting(false);
+    setRbRect(null);
+    rbStart.current = null;
+
+    if (!rbMoved.current) return; // single right-click, let context menu handle it
+
+    // compute which nodes are inside the selection rect
+    const f1 = screenToFlowPosition({ x: Math.min(e.clientX, savedStart?.sx ?? e.clientX), y: Math.min(e.clientY, savedStart?.sy ?? e.clientY) });
+    const f2 = screenToFlowPosition({ x: Math.max(e.clientX, savedStart?.sx ?? e.clientX), y: Math.max(e.clientY, savedStart?.sy ?? e.clientY) });
+    const inside = rfNodes.filter((n) => {
+      const nw = n.measured?.width ?? 240;
+      const nh = n.measured?.height ?? 100;
+      return n.position.x + nw >= f1.x && n.position.x <= f2.x && n.position.y + nh >= f1.y && n.position.y <= f2.y;
+    });
+    if (inside.length > 0) {
+      const ids = inside.map((n) => Number(n.id));
+      pendingSourceRef.current = ids;
+      setSelectedNodeIds(ids);
+      // select them in ReactFlow too
+      setRfNodes((prev) => prev.map((n) => ({ ...n, selected: ids.includes(Number(n.id)) })));
+      setMenu({ type: "selection", screenX: e.clientX, screenY: e.clientY, nodeIds: ids });
+    }
+    e.preventDefault();
+  }, [rbSelecting, screenToFlowPosition, rfNodes, setRfNodes]);
+
+  // left click = select only (preview, no edit)
+  const handleNodeClick = useCallback((_event: React.MouseEvent, _node: RFNode) => {
+    // selection handled by ReactFlow natively
+  }, []);
+
+  // keep track of selected nodes (for Ctrl+click etc)
+  const handleSelectionChange = useCallback((params: OnSelectionChangeParams) => {
+    const ids = params.nodes.map((n) => Number(n.id));
+    setSelectedNodeIds(ids);
   }, []);
 
   const handlePaneContextMenu = useCallback(
     (event: React.MouseEvent | MouseEvent) => {
       event.preventDefault();
+      // don't overwrite drag-selection menu
+      if (menu?.type === "selection") return;
       const flow = screenToFlowPosition({
         x: (event as MouseEvent).clientX,
         y: (event as MouseEvent).clientY,
@@ -286,7 +362,7 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
         flowY: flow.y,
       });
     },
-    [screenToFlowPosition],
+    [screenToFlowPosition, menu],
   );
 
   const handleNodeContextMenu = useCallback(
@@ -295,6 +371,62 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
       setMenu({ type: "node", screenX: event.clientX, screenY: event.clientY, nodeId: Number(node.id) });
     },
     [],
+  );
+
+  // ── pending node creation ──────────────────────────────────────────
+  const handlePendingConfirm = useCallback(
+    async (config: PendingNodeConfig) => {
+      const sourceIds = pendingSourceRef.current;
+      const sources = sourceIds
+        .map((id) => rfNodes.find((n) => Number(n.id) === id))
+        .filter(Boolean) as RFNode<CustomNodeData>[];
+
+      let posX: number;
+      let posY: number;
+
+      if (sources.length > 0) {
+        const maxX = Math.max(...sources.map((n) => n.position.x));
+        const avgY = sources.reduce((acc, n) => acc + n.position.y, 0) / sources.length;
+        posX = maxX + 320;
+        posY = avgY;
+      } else if (pendingPos) {
+        posX = pendingPos.x;
+        posY = pendingPos.y;
+      } else {
+        posX = 0;
+        posY = 0;
+      }
+
+      try {
+        const node = await workflowApi.createNode(projectId, {
+          kind: config.kind,
+          title: config.title || undefined,
+          prompt: config.prompt,
+          position_x: posX,
+          position_y: posY,
+          config_json: config.config_json,
+        });
+        upsertNode(node);
+        setRfNodes((prev) => [...prev, toRfNode(node)]);
+
+        for (const src of sources) {
+          try {
+            const edge = await workflowApi.createEdge(projectId, Number(src.id), node.id);
+            upsertEdge(edge);
+            setRfEdges((prev) => [...prev, toRfEdge(edge, [])]);
+          } catch { /* ignore */ }
+        }
+
+        setPendingKind(null);
+        setPendingPos(null);
+        setSelectedNodeIds([]);
+        pendingSourceRef.current = [];
+        toast.success(`已创建${KIND_LABELS[config.kind]}节点`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "创建节点失败");
+      }
+    },
+    [projectId, pendingPos, rfNodes, setRfNodes, setRfEdges, upsertNode, upsertEdge],
   );
 
   // ── menu building ──────────────────────────────────────────────────
@@ -306,15 +438,40 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
 
   const menuItems: MenuItem[] = useMemo(() => {
     if (!menu) return [];
+    if (menu.type === "selection") {
+      const selIds = menu.nodeIds;
+      return [{
+        key: "gen", label: `选中 ${selIds.length} 个节点 → 生成`, icon: <Plus className="w-3.5 h-3.5" />,
+        children: buildKindItems((k) => {
+          pendingSourceRef.current = selIds;
+          setSelectedNodeIds(selIds);
+          setPendingPos(null);
+          setPendingKind(k);
+        }),
+      }];
+    }
     if (menu.type === "pane") {
-      return [{ key: "create", label: "新建节点", icon: <Plus className="w-3.5 h-3.5" />, children: buildKindItems((k) => createNodeAt(k, menu.flowX, menu.flowY)) }];
+      return [{
+        key: "create", label: "新建节点", icon: <Plus className="w-3.5 h-3.5" />,
+        children: buildKindItems((k) => {
+          setPendingPos({ x: menu.flowX, y: menu.flowY });
+          setSelectedNodeIds([]);
+          pendingSourceRef.current = [];
+          setPendingKind(k);
+        }),
+      }];
     }
     if (menu.type === "node") {
       const node = rfNodes.find((n) => Number(n.id) === menu.nodeId);
       if (!node) return [];
       const canRun = Boolean(node.data.prompt && node.data.prompt.trim());
       return [
-        { key: "continue", label: "继续 · 自动连线", icon: <Plus className="w-3.5 h-3.5" />, children: buildKindItems((k) => createNodeAt(k, node.position.x + 320, node.position.y, menu.nodeId)) },
+        { key: "continue", label: "继续 · 自动连线", icon: <Plus className="w-3.5 h-3.5" />, children: buildKindItems((k) => {
+          setPendingPos({ x: node.position.x + 320, y: node.position.y });
+          setSelectedNodeIds([menu.nodeId]);
+          pendingSourceRef.current = [menu.nodeId];
+          setPendingKind(k);
+        }) },
         { key: "edit", label: "编辑", icon: <Settings className="w-3.5 h-3.5" />, onSelect: () => setEditNodeId(menu.nodeId) },
         { key: "run", label: "运行此节点", icon: <Play className="w-3.5 h-3.5" />, disabled: !canRun || node.data.status === "running", onSelect: async () => {
           try { await workflowApi.runNode(projectId, menu.nodeId); toast.success("已开始运行"); } catch (err) { toast.error(err instanceof Error ? err.message : "运行失败"); }
@@ -328,7 +485,11 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   }, [menu, rfNodes, projectId, setRfNodes, createNodeAt]);
 
   return (
-    <div ref={wrapperRef} className="absolute inset-0">
+    <div
+      ref={wrapperRef}
+      className="absolute inset-0"
+      onContextMenu={(e) => { if (rbMoved.current) { e.preventDefault(); rbMoved.current = false; } }}
+    >
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -340,6 +501,10 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
         onNodeClick={handleNodeClick}
         onPaneContextMenu={handlePaneContextMenu}
         onNodeContextMenu={handleNodeContextMenu}
+        onSelectionChange={handleSelectionChange}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         nodesDraggable
         nodesConnectable
         elementsSelectable
@@ -352,11 +517,28 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
         <Controls showInteractive={false} />
       </ReactFlow>
       {menu && <CanvasMenu x={menu.screenX} y={menu.screenY} items={menuItems} onClose={closeMenu} />}
+
+      {/* right-click drag selection rectangle */}
+      {rbRect && (
+        <div
+          className="absolute z-40 pointer-events-none border border-signal/60 bg-signal/8 rounded-sm"
+          style={{ left: rbRect.x, top: rbRect.y, width: rbRect.w, height: rbRect.h }}
+        />
+      )}
+
       <NodeEditDialog
         open={editNodeId !== null}
         onClose={() => setEditNodeId(null)}
         projectId={projectId}
         node={editNodeId !== null ? (useWorkflowStore.getState().nodes.find((n: WorkflowNode) => n.id === editNodeId) ?? null) : null}
+      />
+
+      <PendingNodeDialog
+        open={pendingKind !== null}
+        kind={pendingKind ?? "video"}
+        sourceCount={pendingSourceRef.current.length}
+        onConfirm={handlePendingConfirm}
+        onCancel={() => { setPendingKind(null); setPendingPos(null); setSelectedNodeIds([]); pendingSourceRef.current = []; }}
       />
     </div>
   );
