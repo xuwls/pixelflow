@@ -5,8 +5,11 @@ interface WorkflowStore {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   selectedNodeIds: Set<number>;
+  graphLoaded: boolean;
+  initialSyncDone: boolean;
 
   setGraph: (nodes: WorkflowNode[], edges: WorkflowEdge[]) => void;
+  markInitialSyncDone: () => void;
   setNodes: (nodes: WorkflowNode[]) => void;
   setEdges: (edges: WorkflowEdge[]) => void;
 
@@ -29,8 +32,11 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
   nodes: [],
   edges: [],
   selectedNodeIds: new Set<number>(),
+  graphLoaded: false,
+  initialSyncDone: false,
 
-  setGraph: (nodes, edges) => set({ nodes, edges }),
+  setGraph: (nodes, edges) => set({ nodes, edges, graphLoaded: true }),
+  markInitialSyncDone: () => set({ initialSyncDone: true }),
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
 
@@ -80,5 +86,5 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
   setSelection: (ids) => set({ selectedNodeIds: new Set(ids) }),
   clearSelection: () => set({ selectedNodeIds: new Set() }),
 
-  reset: () => set({ nodes: [], edges: [], selectedNodeIds: new Set() }),
+  reset: () => set({ nodes: [], edges: [], selectedNodeIds: new Set(), graphLoaded: false, initialSyncDone: false }),
 }));

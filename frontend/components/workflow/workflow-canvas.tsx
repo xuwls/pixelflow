@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -29,17 +29,15 @@ import { FileText, Image as ImageIcon, Video, Trash2, Play, Merge, Plus, Setting
 import { NodeEditDialog } from "./node-edit-dialog";
 
 const NODE_TYPES = { custom: CustomNode };
-const FIT_VIEW_OPTIONS = { padding: 0.4, maxZoom: 1.1 };
 const DELETE_KEY_CODE: string[] = ["Delete", "Backspace"];
 
 // ── helpers ──────────────────────────────────────────────────────────
 
-function toRfNode(n: WorkflowNode, selected: boolean): RFNode<CustomNodeData> {
+function toRfNode(n: WorkflowNode): RFNode<CustomNodeData> {
   return {
     id: String(n.id),
     type: "custom",
     position: { x: n.position_x, y: n.position_y },
-    selected,
     data: {
       kind: n.kind,
       title: n.title,
@@ -51,10 +49,7 @@ function toRfNode(n: WorkflowNode, selected: boolean): RFNode<CustomNodeData> {
   };
 }
 
-function toRfEdge(
-  e: { id: number; source_node_id: number; target_node_id: number },
-  nodes: WorkflowNode[],
-): RFEdge {
+function toRfEdge(e: { id: number; source_node_id: number; target_node_id: number }, nodes: WorkflowNode[]): RFEdge {
   const src = nodes.find((n) => n.id === e.source_node_id);
   return {
     id: String(e.id),
@@ -67,135 +62,70 @@ function toRfEdge(
 
 // ── menu state types ─────────────────────────────────────────────────
 
-interface PaneMenuState {
-  type: "pane";
-  screenX: number;
-  screenY: number;
-  flowX: number;
-  flowY: number;
-}
-
-interface NodeMenuState {
-  type: "node";
-  screenX: number;
-  screenY: number;
-  nodeId: number;
-}
-
-interface SelectionMenuState {
-  type: "selection";
-  screenX: number;
-  screenY: number;
-  nodeIds: number[];
-}
-
+interface PaneMenuState { type: "pane"; screenX: number; screenY: number; flowX: number; flowY: number; }
+interface NodeMenuState { type: "node"; screenX: number; screenY: number; nodeId: number; }
+interface SelectionMenuState { type: "selection"; screenX: number; screenY: number; nodeIds: number[]; }
 type MenuState = PaneMenuState | NodeMenuState | SelectionMenuState | null;
 
 // ── component ────────────────────────────────────────────────────────
 
-export function WorkflowCanvas({ projectId }: { projectId: number }) {
-  return (
-    <ReactFlowProvider>
-      <CanvasInner projectId={projectId} />
-    </ReactFlowProvider>
-  );
+interface WorkflowCanvasProps {
+  projectId: number;
+  initialNodes: WorkflowNode[];
+  initialEdges: { id: number; source_node_id: number; target_node_id: number }[];
 }
 
-function CanvasInner({ projectId }: { projectId: number }) {
-  // ── Zustand store (source of truth for persistence) ──────────────
-  const storeNodes = useWorkflowStore((s) => s.nodes);
-  const storeEdges = useWorkflowStore((s) => s.edges);
-  const selectedNodeIds = useWorkflowStore((s) => s.selectedNodeIds);
-  const upsertNode = useWorkflowStore((s) => s.upsertNode);
-  const removeNode = useWorkflowStore((s) => s.removeNode);
-  const removeEdge = useWorkflowStore((s) => s.removeEdge);
-  const upsertEdge = useWorkflowStore((s) => s.upsertEdge);
-  const setSelection = useWorkflowStore((s) => s.setSelection);
-  const setGraph = useWorkflowStore((s) => s.setGraph);
+export const WorkflowCanvas = memo(function WorkflowCanvas({ projectId, initialNodes, initialEdges }: WorkflowCanvasProps) {
+  return (
+    <ReactFlowProvider>
+      <CanvasInner projectId={projectId} initialNodes={initialNodes} initialEdges={initialEdges} />
+    </ReactFlowProvider>
+  );
+});
 
-  // ── React Flow's own state (handles rendering, no external loop) ──
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
-  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
-
-  // Sync Zustand → React Flow whenever store data changes
-  const prevStoreLen = useRef(0);
-  useEffect(() => {
-    const len = storeNodes.length + storeEdges.length;
-    if (len > 0 && len !== prevStoreLen.current) {
-      (setRfNodes as any)(storeNodes.map((n) => toRfNode(n, selectedNodeIds.has(n.id))));
-      (setRfEdges as any)(storeEdges.map((e) => toRfEdge(e, storeNodes)));
-      prevStoreLen.current = len;
-    }
-  }, [storeNodes, storeEdges]);
-
-  // ── selection sync ────────────────────────────────────────────────
-  const onSelectionChange = useCallback(
-    (params: OnSelectionChangeParams) => {
-      const ids = params.nodes.map((n) => Number(n.id));
-      const current = useWorkflowStore.getState().selectedNodeIds;
-      if (ids.length !== current.size || ids.some((id) => !current.has(id))) {
-        setSelection(ids);
-      }
-    },
-    [setSelection],
+function CanvasInner({ projectId, initialNodes, initialEdges }: WorkflowCanvasProps) {
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState(
+    initialNodes.map((n) => toRfNode(n))
+  );
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState(
+    initialEdges.map((e) => toRfEdge(e, initialNodes))
   );
 
-  // ── position persistence ──────────────────────────────────────────
-  const positionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dirtyPositions = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const { screenToFlowPosition } = useReactFlow();
 
-  // Intercept onNodesChange to track drag positions
+  // Zustand mutations — keep in sync for config panels
+  const upsertNode = useWorkflowStore((s) => s.upsertNode);
+  const removeNode = useWorkflowStore((s) => s.removeNode);
+  const upsertEdge = useWorkflowStore((s) => s.upsertEdge);
+  const removeEdge = useWorkflowStore((s) => s.removeEdge);
+
+  // ── handlers ───────────────────────────────────────────────────────
+
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      // Track position changes for persistence
       for (const c of changes) {
-        if (c.type === "position" && typeof c.id === "string" && c.position) {
-          dirtyPositions.current.set(Number(c.id), {
-            x: c.position.x,
-            y: c.position.y,
-          });
-        }
         if (c.type === "remove" && typeof c.id === "string") {
           const id = Number(c.id);
           removeNode(id);
           workflowApi.deleteNode(projectId, id).catch(() => {});
         }
       }
-      // Always pass through to React Flow's internal handler
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (onNodesChange as any)(changes);
-      // Schedule position flush
-      if (dirtyPositions.current.size) {
-        if (positionTimer.current) clearTimeout(positionTimer.current);
-        positionTimer.current = setTimeout(() => {
-          const dirty = dirtyPositions.current;
-          if (!dirty.size) return;
-          const payload = Array.from(dirty.entries()).map(([id, pos]) => ({
-            id,
-            position_x: pos.x,
-            position_y: pos.y,
-          }));
-          // Update Zustand
-          const store = useWorkflowStore.getState();
-          const byId = new Map(store.nodes.map((n) => [n.id, n]));
-          for (const p of payload) {
-            const n = byId.get(p.id);
-            if (n) {
-              n.position_x = p.position_x;
-              n.position_y = p.position_y;
-            }
-          }
-          store.setNodes(store.nodes.slice());
-          dirty.clear();
-          // Persist to API (fire-and-forget)
-          workflowApi.bulkUpdatePositions(projectId, payload).catch(() => {});
-        }, 350);
-      }
+      onNodesChange(changes);
     },
     [onNodesChange, projectId, removeNode],
   );
 
-  // Intercept onEdgesChange for edge removal persistence
+  const handleNodeDragStop = useCallback(
+    (_event: React.MouseEvent, node: RFNode) => {
+      workflowApi.bulkUpdatePositions(projectId, [{
+        id: Number(node.id),
+        position_x: node.position.x,
+        position_y: node.position.y,
+      }]).catch(() => {});
+    },
+    [projectId],
+  );
+
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       for (const c of changes) {
@@ -205,18 +135,10 @@ function CanvasInner({ projectId }: { projectId: number }) {
           workflowApi.deleteEdge(projectId, id).catch(() => {});
         }
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (onEdgesChange as any)(changes);
+      onEdgesChange(changes);
     },
     [onEdgesChange, projectId, removeEdge],
   );
-
-  // ── other React Flow callbacks ─────────────────────────────────────
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const { screenToFlowPosition } = useReactFlow();
-
-  const [menu, setMenu] = useState<MenuState>(null);
-  const [editNodeId, setEditNodeId] = useState<number | null>(null);
 
   const onConnect = useCallback(
     async (connection: Connection) => {
@@ -227,141 +149,115 @@ function CanvasInner({ projectId }: { projectId: number }) {
       try {
         const edge = await workflowApi.createEdge(projectId, src, tgt);
         upsertEdge(edge);
+        setRfEdges((prev) => [...prev, toRfEdge(edge, [])]);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "连接失败";
-        toast.error(msg);
+        toast.error(err instanceof Error ? err.message : "连接失败");
       }
     },
-    [projectId, upsertEdge],
+    [projectId, upsertEdge, setRfEdges],
   );
 
   // ── node creation ──────────────────────────────────────────────────
-  const addNodeToRf = useCallback(
-    (node: WorkflowNode) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (setRfNodes as any)((prev: any) => [...prev, toRfNode(node, false)]);
-    },
-    [setRfNodes],
-  );
-
   const createNodeAt = useCallback(
     async (kind: NodeKind, flowX: number, flowY: number, sourceId?: number) => {
-      const x = Number.isFinite(flowX) ? flowX : 0;
-      const y = Number.isFinite(flowY) ? flowY : 0;
       try {
         const node = await workflowApi.createNode(projectId, {
           kind,
-          position_x: x,
-          position_y: y,
+          position_x: Number.isFinite(flowX) ? flowX : 0,
+          position_y: Number.isFinite(flowY) ? flowY : 0,
         });
         upsertNode(node);
-        addNodeToRf(node);
+        setRfNodes((prev) => [...prev, toRfNode(node)]);
         if (sourceId) {
           try {
             const edge = await workflowApi.createEdge(projectId, sourceId, node.id);
             upsertEdge(edge);
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : "连接失败";
-            toast.error(msg);
+            setRfEdges((prev) => [...prev, toRfEdge(edge, [])]);
+          } catch {
+            // ignore
           }
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "创建节点失败";
-        toast.error(msg);
+        toast.error(err instanceof Error ? err.message : "创建节点失败");
       }
     },
-    [projectId, upsertNode, upsertEdge, addNodeToRf],
+    [projectId, setRfNodes, setRfEdges],
   );
 
   const createMergeNode = useCallback(
     async (kind: NodeKind, sourceIds: number[]) => {
       const sources = sourceIds
-        .map((id) => storeNodes.find((n) => n.id === id))
-        .filter((n): n is WorkflowNode => Boolean(n));
+        .map((id) => rfNodes.find((n) => Number(n.id) === id))
+        .filter(Boolean) as RFNode<CustomNodeData>[];
       if (sources.length === 0) return;
-      const maxX = Math.max(...sources.map((n) => n.position_x));
-      const avgY = sources.reduce((acc, n) => acc + n.position_y, 0) / sources.length;
-      const x = maxX + 320;
-      const y = avgY;
+      const maxX = Math.max(...sources.map((n) => n.position.x));
+      const avgY = sources.reduce((acc, n) => acc + n.position.y, 0) / sources.length;
       try {
         const node = await workflowApi.createNode(projectId, {
           kind,
-          position_x: x,
-          position_y: y,
+          position_x: maxX + 320,
+          position_y: avgY,
         });
         upsertNode(node);
-        addNodeToRf(node);
+        setRfNodes((prev) => [...prev, toRfNode(node)]);
         for (const src of sources) {
           try {
-            const edge = await workflowApi.createEdge(projectId, src.id, node.id);
+            const edge = await workflowApi.createEdge(projectId, Number(src.id), node.id);
             upsertEdge(edge);
-          } catch {
-            // ignore individual edge failures
-          }
+            setRfEdges((prev) => [...prev, toRfEdge(edge, [])]);
+          } catch { /* ignore */ }
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "合并失败";
-        toast.error(msg);
+        toast.error(err instanceof Error ? err.message : "合并失败");
       }
     },
-    [projectId, storeNodes, upsertNode, upsertEdge, addNodeToRf],
+    [projectId, rfNodes, setRfNodes, setRfEdges],
   );
 
-  // --- clipboard paste handler ---
-
+  // ── clipboard paste ────────────────────────────────────────────────
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = wrapperRef.current;
-
     const onPaste = async (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
-
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         if (!item.type.startsWith("image/") && !item.type.startsWith("video/")) continue;
-
         const blob = item.getAsFile();
         if (!blob) continue;
-
         e.preventDefault();
-
-        const wrapperRect = el?.getBoundingClientRect();
-        if (!wrapperRect) return;
+        const rect = el?.getBoundingClientRect();
+        if (!rect) return;
         const flowPos = screenToFlowPosition({
-          x: wrapperRect.left + wrapperRect.width / 2,
-          y: wrapperRect.top + wrapperRect.height / 2,
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
         });
-
         const ext = blob.type.split("/")[1] || "png";
         const file = new File([blob], `paste-${Date.now()}.${ext}`, { type: blob.type });
-
         try {
-          const result = await workflowApi.pasteNodeAsset(
-            projectId, file, flowPos.x, flowPos.y);
+          const result = await workflowApi.pasteNodeAsset(projectId, file, flowPos.x, flowPos.y);
           upsertNode(result.node);
-          (setRfNodes as any)((prev: any) => [...prev, toRfNode(result.node, false)]);
-          const label = result.node.kind === "image" ? "图片" : "视频";
-          toast.success(`已粘贴${label}素材`);
+          setRfNodes((prev) => [...prev, toRfNode(result.node)]);
+          toast.success(`已粘贴${result.node.kind === "image" ? "图片" : "视频"}素材`);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "粘贴失败");
         }
         break;
       }
     };
-
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [projectId, screenToFlowPosition, upsertNode, setRfNodes]);
+  }, [projectId, screenToFlowPosition, setRfNodes]);
 
-  // --- node click handler ---
-  const handleNodeClick = useCallback(
-    (_event: React.MouseEvent, node: RFNode) => {
-      setEditNodeId(Number(node.id));
-    },
-    [],
-  );
+  // ── UI state ───────────────────────────────────────────────────────
+  const [menu, setMenu] = useState<MenuState>(null);
+  const [editNodeId, setEditNodeId] = useState<number | null>(null);
 
-  // --- context menu handlers --- ──────────────────────────────────────────
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: RFNode) => {
+    setEditNodeId(Number(node.id));
+  }, []);
+
   const handlePaneContextMenu = useCallback(
     (event: React.MouseEvent | MouseEvent) => {
       event.preventDefault();
@@ -383,153 +279,40 @@ function CanvasInner({ projectId }: { projectId: number }) {
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: RFNode) => {
       event.preventDefault();
-      const id = Number(node.id);
-      const current = useWorkflowStore.getState().selectedNodeIds;
-      if (!current.has(id) || current.size <= 1) {
-        setSelection([id]);
-        setMenu({ type: "node", screenX: event.clientX, screenY: event.clientY, nodeId: id });
-      } else {
-        setMenu({
-          type: "selection",
-          screenX: event.clientX,
-          screenY: event.clientY,
-          nodeIds: Array.from(current),
-        });
-      }
-    },
-    [setSelection],
-  );
-
-  const handleSelectionContextMenu = useCallback(
-    (event: React.MouseEvent, selectedNodes: RFNode[]) => {
-      event.preventDefault();
-      setMenu({
-        type: "selection",
-        screenX: event.clientX,
-        screenY: event.clientY,
-        nodeIds: selectedNodes.map((n) => Number(n.id)),
-      });
+      setMenu({ type: "node", screenX: event.clientX, screenY: event.clientY, nodeId: Number(node.id) });
     },
     [],
   );
 
   // ── menu building ──────────────────────────────────────────────────
   const buildKindItems = (onPick: (k: NodeKind) => void): MenuItem[] => [
-    {
-      key: "text",
-      label: KIND_LABELS.text,
-      icon: <FileText className="w-3.5 h-3.5" />,
-      onSelect: () => onPick("text"),
-    },
-    {
-      key: "image",
-      label: KIND_LABELS.image,
-      icon: <ImageIcon className="w-3.5 h-3.5" />,
-      onSelect: () => onPick("image"),
-    },
-    {
-      key: "video",
-      label: KIND_LABELS.video,
-      icon: <Video className="w-3.5 h-3.5" />,
-      onSelect: () => onPick("video"),
-    },
+    { key: "text", label: KIND_LABELS.text, icon: <FileText className="w-3.5 h-3.5" />, onSelect: () => onPick("text") },
+    { key: "image", label: KIND_LABELS.image, icon: <ImageIcon className="w-3.5 h-3.5" />, onSelect: () => onPick("image") },
+    { key: "video", label: KIND_LABELS.video, icon: <Video className="w-3.5 h-3.5" />, onSelect: () => onPick("video") },
   ];
 
   const menuItems: MenuItem[] = useMemo(() => {
     if (!menu) return [];
-
     if (menu.type === "pane") {
-      return [
-        {
-          key: "create",
-          label: "新建节点",
-          icon: <Plus className="w-3.5 h-3.5" />,
-          children: buildKindItems((k) => createNodeAt(k, menu.flowX, menu.flowY)),
-        },
-      ];
+      return [{ key: "create", label: "新建节点", icon: <Plus className="w-3.5 h-3.5" />, children: buildKindItems((k) => createNodeAt(k, menu.flowX, menu.flowY)) }];
     }
-
     if (menu.type === "node") {
-      const node = storeNodes.find((n) => n.id === menu.nodeId);
+      const node = rfNodes.find((n) => Number(n.id) === menu.nodeId);
       if (!node) return [];
-      const continueX = node.position_x + 320;
-      const continueY = node.position_y;
-      const canRun = Boolean(node.prompt && node.prompt.trim());
+      const canRun = Boolean(node.data.prompt && node.data.prompt.trim());
       return [
-        {
-          key: "continue",
-          label: "继续 · 自动连线",
-          icon: <Plus className="w-3.5 h-3.5" />,
-          children: buildKindItems((k) => createNodeAt(k, continueX, continueY, node.id)),
-        },
-        {
-          key: "edit",
-          label: "编辑",
-          icon: <Settings className="w-3.5 h-3.5" />,
-          onSelect: () => {
-            if (menu && menu.type === "node") setEditNodeId(menu.nodeId);
-          },
-        },
-        {
-          key: "run",
-          label: "运行此节点",
-          icon: <Play className="w-3.5 h-3.5" />,
-          disabled: !canRun || node.status === "running",
-          onSelect: async () => {
-            try {
-              await workflowApi.runNode(projectId, node.id);
-              toast.success("已开始运行");
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : "运行失败";
-              toast.error(msg);
-            }
-          },
-        },
-        {
-          key: "delete",
-          label: "删除节点",
-          icon: <Trash2 className="w-3.5 h-3.5" />,
-          destructive: true,
-          onSelect: async () => {
-            try {
-              await workflowApi.deleteNode(projectId, node.id);
-              removeNode(node.id);
-              (setRfNodes as any)((prev: any) => prev.filter((n: any) => n.id !== String(node.id)));
-            } catch {
-              toast.error("删除失败");
-            }
-          },
-        },
+        { key: "continue", label: "继续 · 自动连线", icon: <Plus className="w-3.5 h-3.5" />, children: buildKindItems((k) => createNodeAt(k, node.position.x + 320, node.position.y, menu.nodeId)) },
+        { key: "edit", label: "编辑", icon: <Settings className="w-3.5 h-3.5" />, onSelect: () => setEditNodeId(menu.nodeId) },
+        { key: "run", label: "运行此节点", icon: <Play className="w-3.5 h-3.5" />, disabled: !canRun || node.data.status === "running", onSelect: async () => {
+          try { await workflowApi.runNode(projectId, menu.nodeId); toast.success("已开始运行"); } catch (err) { toast.error(err instanceof Error ? err.message : "运行失败"); }
+        }},
+        { key: "delete", label: "删除节点", icon: <Trash2 className="w-3.5 h-3.5" />, destructive: true, onSelect: async () => {
+          try { await workflowApi.deleteNode(projectId, menu.nodeId); removeNode(menu.nodeId); setRfNodes((prev) => prev.filter((n) => Number(n.id) !== menu.nodeId)); } catch { toast.error("删除失败"); }
+        }},
       ];
     }
-
-    return [
-      {
-        key: "merge",
-        label: `合并为新节点 (${menu.nodeIds.length})`,
-        icon: <Merge className="w-3.5 h-3.5" />,
-        children: buildKindItems((k) => createMergeNode(k, menu.nodeIds)),
-      },
-      {
-        key: "delete-all",
-        label: `删除选中 (${menu.nodeIds.length})`,
-        icon: <Trash2 className="w-3.5 h-3.5" />,
-        destructive: true,
-        onSelect: async () => {
-          for (const id of menu.nodeIds) {
-            try {
-              await workflowApi.deleteNode(projectId, id);
-              removeNode(id);
-            } catch {
-              // continue
-            }
-          }
-          (setRfNodes as any)((prev: any) => prev.filter((n: any) => !menu.nodeIds.includes(Number(n.id))));
-        },
-      },
-    ];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menu, storeNodes, projectId]);
+    return [];
+  }, [menu, rfNodes, projectId, setRfNodes, createNodeAt]);
 
   return (
     <div ref={wrapperRef} className="absolute inset-0">
@@ -538,46 +321,30 @@ function CanvasInner({ projectId }: { projectId: number }) {
         edges={rfEdges}
         nodeTypes={NODE_TYPES}
         onNodesChange={handleNodesChange}
+        onNodeDragStop={handleNodeDragStop}
         onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
-        onSelectionChange={onSelectionChange}
         onNodeClick={handleNodeClick}
         onPaneContextMenu={handlePaneContextMenu}
         onNodeContextMenu={handleNodeContextMenu}
-        onSelectionContextMenu={handleSelectionContextMenu}
         nodesDraggable
         nodesConnectable
         elementsSelectable
         deleteKeyCode={DELETE_KEY_CODE}
         proOptions={{ hideAttribution: true }}
-        fitView
-        fitViewOptions={FIT_VIEW_OPTIONS}
+        colorMode="light"
         className="bg-background"
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={24}
-          size={1}
-          color="oklch(0.18 0.01 270 / 0.12)"
-        />
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="oklch(0.18 0.01 270 / 0.12)" />
         <Controls showInteractive={false} />
       </ReactFlow>
-
-      {menu && (
-        <CanvasMenu
-          x={menu.screenX}
-          y={menu.screenY}
-          items={menuItems}
-          onClose={() => setMenu(null)}
-        />
-      )}
+      {menu && <CanvasMenu x={menu.screenX} y={menu.screenY} items={menuItems} onClose={() => setMenu(null)} />}
       <NodeEditDialog
         open={editNodeId !== null}
         onClose={() => setEditNodeId(null)}
         projectId={projectId}
-        node={editNodeId !== null ? storeNodes.find((n) => n.id === editNodeId) ?? null : null}
+        node={editNodeId !== null ? (useWorkflowStore.getState().nodes.find((n: WorkflowNode) => n.id === editNodeId) ?? null) : null}
       />
-
     </div>
   );
 }

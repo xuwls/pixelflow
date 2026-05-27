@@ -121,7 +121,11 @@ export default function WorkflowPage() {
             </span>
           </div>
           <div className="flex-1 relative bg-hairline">
-            <WorkflowCanvas projectId={projectId} />
+            <WorkflowCanvas
+              projectId={projectId}
+              initialNodes={currentProject.nodes ?? []}
+              initialEdges={currentProject.edges ?? []}
+            />
           </div>
         </main>
 
