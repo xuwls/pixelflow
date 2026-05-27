@@ -48,7 +48,7 @@ export function CanvasMenu({ x, y, items, onClose }: CanvasMenuProps) {
     <div
       ref={ref}
       style={{ top: y, left: x }}
-      className="fixed z-50 min-w-[200px] rounded-xl border border-border/60 bg-popover/95 backdrop-blur-md text-popover-foreground shadow-lg py-1 spring-in"
+      className="fixed z-50 min-w-[200px] rounded-xl border border-border/60 bg-popover/95 backdrop-blur-md text-popover-foreground shadow-lg py-1"
       onContextMenu={(e) => e.preventDefault()}
     >
       {items.map((item) => (
