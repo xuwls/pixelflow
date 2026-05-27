@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,12 @@ export default function WorkflowPage() {
   const setGraph = useWorkflowStore((s) => s.setGraph);
   const reset = useWorkflowStore((s) => s.reset);
   const nodes = useWorkflowStore((s) => s.nodes);
-  
+
   useWebSocket(projectId);
+
+  // Track whether we've ever loaded this project — prevents unmounting canvas
+  const projectLoaded = useRef(false);
+  const projectIdRef = useRef(projectId);
 
   useEffect(() => {
     if (projectId) {
@@ -34,24 +38,18 @@ export default function WorkflowPage() {
   useEffect(() => {
     if (currentProject?.id === projectId) {
       setGraph(currentProject.nodes ?? [], currentProject.edges ?? []);
+      projectLoaded.current = true;
+      projectIdRef.current = projectId;
     }
   }, [currentProject, projectId, setGraph]);
 
-  if (isLoading || !currentProject) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <SiteHeader />
-        <div className="flex-1 grid place-items-center bg-hairline">
-          <div className="flex flex-col items-center gap-3 text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin text-signal" />
-            <p className="font-mono text-[10px] tracking-[0.3em] uppercase">
-              LOADING · 加载工程中
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+  // Reset loaded flag when project changes
+  if (projectId !== projectIdRef.current) {
+    projectLoaded.current = false;
+    projectIdRef.current = projectId;
   }
+
+  const showLoading = !projectLoaded.current;
 
   const completedCount = nodes.filter((n) => n.status === "completed").length;
   const runningCount = nodes.filter((n) => n.status === "running").length;
@@ -61,49 +59,51 @@ export default function WorkflowPage() {
     <div className="h-screen flex flex-col bg-background">
       <SiteHeader />
 
-      <div className="border-b border-border bg-secondary/20">
-        <div className="px-6 h-12 flex items-center justify-between gap-4 max-w-[1600px] mx-auto w-full">
-          <div className="flex items-center gap-3 min-w-0">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => router.push("/projects")}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
-              PROJECT · {String(projectId).padStart(4, "0")}
-            </span>
-            <span className="w-px h-3.5 bg-border" />
-            <h2
-              className="text-lg leading-none tracking-wide truncate"
-              style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}
-            >
-              {currentProject.name}
-            </h2>
-            <StatusBadge status={currentProject.status} />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="hidden md:inline-flex items-center gap-3 font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
-              <span>
-                <span className="text-foreground tabular-nums">{completedCount}</span>
-                <span className="opacity-60">/{nodes.length}</span> 完成
+      {currentProject && (
+        <div className="border-b border-border bg-secondary/20">
+          <div className="px-6 h-12 flex items-center justify-between gap-4 max-w-[1600px] mx-auto w-full">
+            <div className="flex items-center gap-3 min-w-0">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => router.push("/projects")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
+                PROJECT · {String(projectId).padStart(4, "0")}
               </span>
-              {runningCount > 0 && (
-                <span className="text-signal flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-signal pulse-dot" />
-                  {runningCount} 运行中
+              <span className="w-px h-3.5 bg-border" />
+              <h2
+                className="text-lg leading-none tracking-wide truncate"
+                style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}
+              >
+                {currentProject.name}
+              </h2>
+              <StatusBadge status={currentProject.status} />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="hidden md:inline-flex items-center gap-3 font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
+                <span>
+                  <span className="text-foreground tabular-nums">{completedCount}</span>
+                  <span className="opacity-60">/{nodes.length}</span> 完成
                 </span>
-              )}
-              {failedCount > 0 && (
-                <span className="text-destructive">{failedCount} 失败</span>
-              )}
-            </span>
+                {runningCount > 0 && (
+                  <span className="text-signal flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-signal pulse-dot" />
+                    {runningCount} 运行中
+                  </span>
+                )}
+                {failedCount > 0 && (
+                  <span className="text-destructive">{failedCount} 失败</span>
+                )}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden relative">
         <main className="flex-1 flex flex-col min-w-0">
@@ -123,12 +123,21 @@ export default function WorkflowPage() {
           <div className="flex-1 relative bg-hairline">
             <WorkflowCanvas
               projectId={projectId}
-              initialNodes={currentProject.nodes ?? []}
-              initialEdges={currentProject.edges ?? []}
+              initialNodes={currentProject?.nodes ?? []}
+              initialEdges={currentProject?.edges ?? []}
             />
+            {showLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin text-signal" />
+                  <p className="font-mono text-[10px] tracking-[0.3em] uppercase">
+                    LOADING · 加载工程中
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </main>
-
       </div>
     </div>
   );

@@ -253,9 +253,7 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   // ── UI state ───────────────────────────────────────────────────────
   const [menu, setMenu] = useState<MenuState>(null);
   const [editNodeId, setEditNodeId] = useState<number | null>(null);
-  const closeMenu = useCallback(() => { console.log('[CanvasInner] closeMenu called'); setMenu(null); }, []);
-  const renderId = useRef(Math.random().toString(36).slice(2, 6));
-  console.log('[CanvasInner] render', renderId.current, 'menu:', !!menu, 'nodes:', rfNodes.length);
+  const closeMenu = useCallback(() => setMenu(null), []);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: RFNode) => {
     setEditNodeId(Number(node.id));
