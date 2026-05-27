@@ -33,10 +33,10 @@ export function CanvasMenu({ x, y, items, onClose }: CanvasMenuProps) {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
-    window.addEventListener("mousedown", handleDown);
+    window.addEventListener("mousedown", handleDown, true);
     window.addEventListener("keydown", handleKey);
     return () => {
-      window.removeEventListener("mousedown", handleDown);
+      window.removeEventListener("mousedown", handleDown, true);
       window.removeEventListener("keydown", handleKey);
     };
   }, [onClose]);
