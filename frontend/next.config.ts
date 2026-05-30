@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  basePath: "/pixelflow",
   // Next.js 16 blocks dev resources (HMR, /_next/*) from origins other than the
   // one Next was started with. When the page is opened on http://127.0.0.1:3000
   // but Next bound to localhost (or vice versa), HMR is blocked and client
