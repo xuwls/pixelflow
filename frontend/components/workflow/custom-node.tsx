@@ -75,7 +75,7 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        "relative glass-card text-card-foreground rounded-xl transition-all duration-200 overflow-hidden",
+        "relative glass-card text-card-foreground rounded-xl transition-all duration-200",
         hasMedia ? "w-[280px]" : "w-[240px]",
         "hover:shadow-md",
         selected ? "!border-signal shadow-glow" : "",
@@ -87,12 +87,12 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
       <Handle
         type="target"
         position={Position.Left}
-        className="!bg-foreground/40 !w-2 !h-2 !border-0"
+        className="!w-4 !h-4 !-left-2 !bg-foreground !border-2 !border-background hover:!bg-signal hover:!scale-125 transition-all cursor-crosshair"
       />
 
       {/* ====== 图片/视频：有 output → 全屏铺开 ====== */}
       {hasMedia && (
-        <div className="relative">
+        <div className="relative overflow-hidden rounded-xl">
           {preview!.kind === "image" && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -143,7 +143,7 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
 
       {/* ====== 图片/视频：无 output → 空白占位 ====== */}
       {!hasMedia && d.kind === "image" && (
-        <div className="relative aspect-square bg-gradient-to-br from-muted/60 via-muted/30 to-muted/60">
+        <div className="relative aspect-square bg-gradient-to-br from-muted/60 via-muted/30 to-muted/60 overflow-hidden rounded-xl">
           <div className="absolute inset-0 grid place-items-center">
             <div className="flex flex-col items-center gap-1.5">
               <Icon className="w-6 h-6 text-muted-foreground/40" />
@@ -164,7 +164,7 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
       )}
 
       {!hasMedia && d.kind === "video" && (
-        <div className="relative aspect-[4/3] overflow-hidden">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-xl">
           {/* 毛玻璃模糊底图 */}
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-400/20 via-purple-400/15 to-pink-400/20 backdrop-blur-xl" />
           <div className="absolute inset-0 bg-secondary/30 backdrop-blur-sm" />
@@ -190,7 +190,7 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
 
       {/* ====== 文本节点 ====== */}
       {!hasMedia && d.kind === "text" && (
-        <div className="relative bg-gradient-to-br from-secondary/40 via-secondary/20 to-secondary/40">
+        <div className="relative bg-gradient-to-br from-secondary/40 via-secondary/20 to-secondary/40 overflow-hidden rounded-xl">
           {/* 左上角类型标签 */}
           <div className="absolute top-2 left-2 z-10">
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/45 backdrop-blur-sm text-[9px] font-mono tracking-wider uppercase text-white/90">
@@ -255,7 +255,7 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
       <Handle
         type="source"
         position={Position.Right}
-        className="!bg-foreground/40 !w-2 !h-2 !border-0"
+        className="!w-4 !h-4 !-right-2 !bg-foreground !border-2 !border-background hover:!bg-signal hover:!scale-125 transition-all cursor-crosshair"
       />
     </div>
   );

@@ -1,13 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
 import { listModels } from "@/lib/api/models";
 import * as workflowApi from "@/lib/api/workflow";
@@ -18,7 +11,7 @@ import {
 } from "@/lib/types/capability";
 import type { WorkflowNode } from "@/lib/types/workflow";
 import { toast } from "sonner";
-import { Play, Upload, Trash2, ChevronDown, Image as ImageIcon, Video } from "lucide-react";
+import { Play, Upload, Trash2, ChevronDown, Image as ImageIcon, Video, Check } from "lucide-react";
 
 const STORAGE_BASE =
   process.env.NEXT_PUBLIC_STORAGE_URL || "http://localhost:9000/pixelflow";
@@ -31,24 +24,6 @@ function resolveAssetUrl(value: unknown): string | null {
 
 // ── presets ────────────────────────────────────────────────────
 
-interface AspectPreset { label: string; w: number; h: number; }
-const ASPECT_RATIOS: AspectPreset[] = [
-  { label: "16:9", w: 16, h: 9 },
-  { label: "1:1", w: 1, h: 1 },
-  { label: "9:16", w: 9, h: 16 },
-];
-
-const IMAGE_RESOLUTIONS = [1024, 1536, 2048];
-const VIDEO_RESOLUTIONS = [720, 1080];
-
-function computeDims(aspectW: number, aspectH: number, baseRes: number) {
-  if (aspectW > aspectH) return { w: Math.round(baseRes * aspectW / aspectH), h: baseRes };
-  if (aspectH > aspectW) return { w: baseRes, h: Math.round(baseRes * aspectH / aspectW) };
-  return { w: baseRes, h: baseRes };
-}
-
-// ── mode tabs ─────────────────────────────────────────────────
-
 type EditMode = "image" | "video";
 
 const MODE_TABS: { key: EditMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -56,12 +31,31 @@ const MODE_TABS: { key: EditMode; label: string; icon: React.ComponentType<{ cla
   { key: "video", label: "生视频", icon: Video },
 ];
 
+const ASPECT_OPTIONS = [
+  { label: "Auto", w: 0, h: 0 },
+  { label: "16:9", w: 16, h: 9 },
+  { label: "4:3", w: 4, h: 3 },
+  { label: "1:1", w: 1, h: 1 },
+  { label: "3:4", w: 3, h: 4 },
+  { label: "9:16", w: 9, h: 16 },
+  { label: "21:9", w: 21, h: 9 },
+];
+
+const IMAGE_RESOLUTIONS = [480, 720, 1024, 1536, 2048];
+const VIDEO_RESOLUTIONS = [480, 720, 1080];
+
+function computeDims(aspectW: number, aspectH: number, baseRes: number) {
+  if (aspectW === 0 || aspectH === 0) return { w: baseRes, h: baseRes };
+  if (aspectW > aspectH) return { w: Math.round(baseRes * aspectW / aspectH), h: baseRes };
+  if (aspectH > aspectW) return { w: baseRes, h: Math.round(baseRes * aspectH / aspectW) };
+  return { w: baseRes, h: baseRes };
+}
+
 // ── model hook ────────────────────────────────────────────────
 
 function useModels(kind: NodeKind) {
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -70,7 +64,6 @@ function useModels(kind: NodeKind) {
       .catch(() => { if (!cancelled) { setModels([]); setLoading(false); } });
     return () => { cancelled = true; };
   }, [kind]);
-
   return { models, loading };
 }
 
@@ -88,7 +81,7 @@ export function NodeEditDialog({ open, onClose, projectId, node }: NodeEditDialo
   return (
     <>
       <div className="absolute inset-0 z-40" onClick={onClose} />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[520px] max-h-[85vh] overflow-hidden flex flex-col rounded-2xl bg-[#1c1c20] border border-white/10 shadow-[0_8px_40px_rgba(0,0,0,0.5)]">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[540px] max-h-[85vh] overflow-hidden flex flex-col rounded-2xl bg-[#1c1c20] border border-white/10 shadow-[0_8px_40px_rgba(0,0,0,0.5)]">
         <NodeEditContent projectId={projectId} node={node} onDelete={onClose} />
       </div>
     </>
@@ -106,26 +99,49 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // mode: 根据 node.kind 初始化，可切换
   const [mode, setMode] = useState<EditMode>(node.kind === "video" ? "video" : "image");
-
-  // 切换 mode 时重新加载模型
   const modeKind: NodeKind = mode === "video" ? "video" : "image";
   const { models, loading: loadingModels } = useModels(modeKind);
 
   const config = (node.config_json ?? {}) as Record<string, unknown>;
   const modelCfg = (config.model ?? {}) as { provider?: string; model_name?: string; display_name?: string };
-  const width = (config.width as number) ?? 1024;
-  const height = (config.height as number) ?? 1024;
-  const durationSec = (config.duration_sec as number) ?? 5;
+
+  // 本地 state，保证点击参数立即生效
+  const [width, setWidth] = useState((config.width as number) ?? 1024);
+  const [height, setHeight] = useState((config.height as number) ?? 1024);
+  const [durationSec, setDurationSec] = useState((config.duration_sec as number) ?? 5);
+  const [soundEffects, setSoundEffects] = useState((config.sound_effects as boolean) ?? false);
+
+  // node prop 变化时同步本地 state
+  useEffect(() => {
+    const c = (node.config_json ?? {}) as Record<string, unknown>;
+    setWidth((c.width as number) ?? 1024);
+    setHeight((c.height as number) ?? 1024);
+    setDurationSec((c.duration_sec as number) ?? 5);
+    setSoundEffects((c.sound_effects as boolean) ?? false);
+  }, [node.config_json]);
 
   const selectedModelKey = modelCfg.provider && modelCfg.model_name
     ? `${modelCfg.provider}:${modelCfg.model_name}`
     : (() => { const def = models.find((m) => m.is_default) ?? models[0]; return def ? `${def.provider}:${def.model_name}` : ""; })();
+  const selectedModel = models.find((m) => `${m.provider}:${m.model_name}` === selectedModelKey);
 
   const curShortSide = Math.min(width, height);
-  const curAspectKey = (() => { const r = width / height; if (r > 1.6) return "16:9"; if (r < 0.6) return "9:16"; return "1:1"; })();
+  const curAspectKey = (() => {
+    const r = width / height;
+    if (Math.abs(r - 1) < 0.05) return "1:1";
+    if (Math.abs(r - 16 / 9) < 0.05) return "16:9";
+    if (Math.abs(r - 9 / 16) < 0.05) return "9:16";
+    if (Math.abs(r - 4 / 3) < 0.05) return "4:3";
+    if (Math.abs(r - 3 / 4) < 0.05) return "3:4";
+    if (Math.abs(r - 21 / 9) < 0.05) return "21:9";
+    return "16:9";
+  })();
   const resolutions = mode === "video" ? VIDEO_RESOLUTIONS : IMAGE_RESOLUTIONS;
+
+  // dropdowns
+  const [showModelDrop, setShowModelDrop] = useState(false);
+  const [showParamDrop, setShowParamDrop] = useState(false);
 
   // ── persist ──────────────────────────────────────────────────
   async function persistConfig(next: Record<string, unknown>) {
@@ -138,31 +154,38 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
   // ── handlers ─────────────────────────────────────────────────
   function handleModeChange(newMode: EditMode) {
     setMode(newMode);
-    // 切换模式时重置分辨率为默认值
     const defaultRes = newMode === "video" ? 720 : 1024;
-    const { w, h } = computeDims(ASPECT_RATIOS[0].w, ASPECT_RATIOS[0].h, defaultRes);
+    const { w, h } = computeDims(16, 9, defaultRes);
+    setWidth(w); setHeight(h);
     persistConfig({ ...config, width: w, height: h });
   }
-
-  function handleModelChange(v: string | null) {
-    if (!v) return;
-    const [provider, model_name] = v.split(":");
-    const m = models.find((x) => x.provider === provider && x.model_name === model_name);
-    persistConfig({ ...config, model: { provider, model_name, display_name: m?.display_name } });
+  function handleModelSelect(m: ModelEntry) {
+    persistConfig({ ...config, model: { provider: m.provider, model_name: m.model_name, display_name: m.display_name } });
+    setShowModelDrop(false);
   }
-
-  function handleAspect(aspect: AspectPreset) {
-    const { w, h } = computeDims(aspect.w, aspect.h, curShortSide || 1024);
+  function handleAspectSelect(label: string) {
+    const ar = ASPECT_OPTIONS.find((a) => a.label === label);
+    if (!ar) return;
+    const newShortSide = Math.min(width, height);
+    const { w, h } = computeDims(ar.w, ar.h, newShortSide || 1024);
+    setWidth(w); setHeight(h);
     persistConfig({ ...config, width: w, height: h });
   }
-
-  function handleResolution(res: number) {
-    const cur = ASPECT_RATIOS.find((a) => a.label === curAspectKey) ?? ASPECT_RATIOS[0];
+  function handleResSelect(res: number) {
+    const cur = ASPECT_OPTIONS.find((a) => a.label === curAspectKey) ?? ASPECT_OPTIONS[1];
     const { w, h } = computeDims(cur.w, cur.h, res);
+    setWidth(w); setHeight(h);
     persistConfig({ ...config, width: w, height: h });
   }
-
-  function handleDurationChange(val: number) { persistConfig({ ...config, duration_sec: val }); }
+  function handleDurationChange(val: number) {
+    setDurationSec(val);
+    persistConfig({ ...config, duration_sec: val });
+  }
+  function handleSoundToggle() {
+    const next = !soundEffects;
+    setSoundEffects(next);
+    persistConfig({ ...config, sound_effects: next });
+  }
   function handlePromptBlur() { if (draftPrompt !== (node.prompt ?? "")) persistField({ prompt: draftPrompt }); }
 
   async function handleUpload(file: File) {
@@ -191,16 +214,15 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
 
   return (
     <>
-      {/* ── 顶部 Tab 栏：生图 / 生视频 ────────────────────── */}
+      {/* ── Tab 栏 ────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-1 bg-white/8 rounded-xl p-1">
           {MODE_TABS.map((tab) => {
             const Icon = tab.icon;
-            const active = mode === tab.key;
             return (
               <button key={tab.key} onClick={() => handleModeChange(tab.key)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
-                  active ? "bg-white/15 text-white" : "text-white/50 hover:text-white/70"
+                  mode === tab.key ? "bg-white/15 text-white" : "text-white/50 hover:text-white/70"
                 }`}>
                 <Icon className="w-3.5 h-3.5" />
                 {tab.label}
@@ -208,12 +230,10 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
             );
           })}
         </div>
-        <button onClick={onDelete} className="text-white/40 hover:text-white/70 transition-colors">
-          <span className="text-[18px] leading-none">×</span>
-        </button>
+        <button onClick={onDelete} className="text-white/40 hover:text-white/70 transition-colors text-lg">×</button>
       </div>
 
-      {/* ── 素材引用区 ────────────────────────────────────── */}
+      {/* ── 素材引用 ──────────────────────────────────────── */}
       <div className="px-4 pb-3">
         <input ref={fileInputRef} type="file" className="hidden"
           accept={mode === "image" ? "image/*" : "video/*"}
@@ -254,7 +274,7 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
         </div>
       </div>
 
-      {/* ── 提示词输入 ────────────────────────────────────── */}
+      {/* ── 提示词 ────────────────────────────────────────── */}
       <div className="px-4 pb-3">
         <textarea
           value={draftPrompt}
@@ -266,39 +286,22 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
         />
       </div>
 
-      {/* ── 底部参数栏 ────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white/10">
-        {/* 模型选择器 */}
-        {loadingModels ? (
-          <span className="text-[11px] text-white/40">加载中…</span>
-        ) : (
-          <Select value={selectedModelKey} onValueChange={handleModelChange}>
-            <SelectTrigger className="h-7 rounded-lg bg-white/8 border-white/12 text-[11px] text-white hover:bg-white/12 transition-colors w-auto min-w-0 gap-1 px-2">
-              <SelectValue placeholder="选择模型" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#2a2a2e] border-white/12">
-              {models.map((m) => (
-                <SelectItem key={`${m.provider}:${m.model_name}`} value={`${m.provider}:${m.model_name}`}
-                  className="text-[11px] text-white/80 focus:bg-white/12 focus:text-white">
-                  {m.display_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+      {/* ── 底部工具栏 ────────────────────────────────────── */}
+      <div className="relative flex items-center gap-2 px-4 py-2.5 border-t border-white/10">
+        {/* 模型选择器（点击展开） */}
+        <button onClick={() => { setShowModelDrop(!showModelDrop); setShowParamDrop(false); }}
+          className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-white/8 border border-white/12 text-[11px] text-white hover:bg-white/12 transition-colors">
+          <span className="font-medium truncate max-w-[140px]">{selectedModel?.display_name ?? "选择模型"}</span>
+          <ChevronDown className="w-3 h-3 text-white/50" />
+        </button>
 
-        {/* 参数摘要：比例 · 分辨率 · 时长 */}
-        <div className="flex items-center gap-1 text-[11px] text-white/50">
-          <span>{curAspectKey}</span>
-          <span className="text-white/20">·</span>
-          <span>{width}×{height}</span>
-          {mode === "video" && (
-            <>
-              <span className="text-white/20">·</span>
-              <span>{durationSec}s</span>
-            </>
-          )}
-        </div>
+        {/* 参数选择器（点击展开） */}
+        <button onClick={() => { setShowParamDrop(!showParamDrop); setShowModelDrop(false); }}
+          className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-white/8 border border-white/12 text-[11px] text-white/70 hover:bg-white/12 transition-colors">
+          <span>{curAspectKey} · {width}×{height}</span>
+          {mode === "video" && <span>· {durationSec}s</span>}
+          <ChevronDown className="w-3 h-3 text-white/40" />
+        </button>
 
         <div className="flex-1" />
 
@@ -314,92 +317,130 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
         </button>
       </div>
 
-      {/* ── 展开参数区 ────────────────────────────────────── */}
-      <ExpandableParams
-        mode={mode}
-        curAspectKey={curAspectKey}
-        curShortSide={curShortSide}
-        durationSec={durationSec}
-        resolutions={resolutions}
-        onAspect={handleAspect}
-        onResolution={handleResolution}
-        onDuration={handleDurationChange}
-      />
-    </>
-  );
-}
-
-// ── 可展开的参数面板 ──────────────────────────────────────────
-
-function ExpandableParams({
-  mode, curAspectKey, curShortSide, durationSec, resolutions,
-  onAspect, onResolution, onDuration,
-}: {
-  mode: EditMode;
-  curAspectKey: string;
-  curShortSide: number;
-  durationSec: number;
-  resolutions: number[];
-  onAspect: (a: AspectPreset) => void;
-  onResolution: (r: number) => void;
-  onDuration: (v: number) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div className="border-t border-white/10">
-      <button onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-2 text-[11px] text-white/50 hover:text-white/70 transition-colors">
-        <span>参数设置</span>
-        <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
-      </button>
-      {expanded && (
-        <div className="px-4 pb-3 space-y-3">
-          {/* 比例 */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-white/40 w-8 shrink-0">比例</span>
-            <div className="flex items-center gap-1">
-              {ASPECT_RATIOS.map((ar) => (
-                <button key={ar.label} onClick={() => onAspect(ar)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] transition-colors ${
-                    curAspectKey === ar.label ? "bg-white/18 text-white font-medium" : "text-white/55 hover:text-white/75 hover:bg-white/8"
+      {/* ── 模型下拉列表 ──────────────────────────────────── */}
+      {showModelDrop && (
+        <div className="mx-4 mb-2 rounded-xl bg-[#2a2a2e] border border-white/10 overflow-hidden max-h-[240px] overflow-y-auto">
+          {loadingModels ? (
+            <div className="px-3 py-4 text-center text-[11px] text-white/40">加载中…</div>
+          ) : models.length === 0 ? (
+            <div className="px-3 py-4 text-center text-[11px] text-white/40">无可用模型</div>
+          ) : (
+            models.map((m) => {
+              const key = `${m.provider}:${m.model_name}`;
+              const active = key === selectedModelKey;
+              return (
+                <button key={key} onClick={() => handleModelSelect(m)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                    active ? "bg-white/10" : "hover:bg-white/5"
                   }`}>
-                  {ar.label}
+                  <div className="w-8 h-8 rounded-lg bg-white/8 grid place-items-center shrink-0">
+                    <span className="text-[10px] text-white/50 font-mono">{m.provider.slice(0, 2)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] text-white font-medium truncate">{m.display_name}</p>
+                    {m.description && (
+                      <p className="text-[10px] text-white/40 truncate mt-0.5">{m.description}</p>
+                    )}
+                  </div>
+                  {active && <Check className="w-3.5 h-3.5 text-white/60 shrink-0" />}
                 </button>
-              ))}
-            </div>
-          </div>
-          {/* 分辨率（实际数值） */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-white/40 w-8 shrink-0">分辨率</span>
-            <div className="flex items-center gap-1">
-              {resolutions.map((res) => (
-                <button key={res} onClick={() => onResolution(res)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition-colors ${
-                    curShortSide === res ? "bg-white/18 text-white font-medium" : "text-white/55 hover:text-white/75 hover:bg-white/8"
-                  }`}>
-                  {res}
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* 时长（仅视频） */}
-          {mode === "video" && (
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-white/40 w-8 shrink-0">时长</span>
-              <input type="range" min={1} max={15} step={1} value={durationSec}
-                onChange={(e) => onDuration(Number(e.target.value))}
-                className="flex-1 h-1 rounded-full appearance-none bg-white/12 cursor-pointer
-                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
-                  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer
-                  [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full
-                  [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
-              />
-              <span className="text-[11px] text-white/65 font-mono w-6 text-right">{durationSec}s</span>
-            </div>
+              );
+            })
           )}
         </div>
       )}
-    </div>
+
+      {/* ── 参数下拉面板 ──────────────────────────────────── */}
+      {showParamDrop && (
+        <div className="mx-4 mb-2 rounded-xl bg-[#2a2a2e] border border-white/10 p-4 space-y-4">
+          {/* 比例 */}
+          <div>
+            <p className="text-[11px] text-white/50 font-medium mb-2">比例</p>
+            <div className="flex flex-wrap gap-1.5">
+              {ASPECT_OPTIONS.map((ar) => (
+                <button key={ar.label} onClick={() => handleAspectSelect(ar.label)}
+                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg border transition-all ${
+                    curAspectKey === ar.label
+                      ? "border-white/30 bg-white/12 text-white"
+                      : "border-white/8 text-white/50 hover:border-white/15 hover:text-white/70"
+                  }`}>
+                  {ar.w > 0 ? (
+                    <div className="border border-current rounded-sm opacity-50" style={{
+                      width: ar.w > ar.h ? 18 : ar.w === ar.h ? 12 : 10,
+                      height: ar.h > ar.w ? 18 : ar.w === ar.h ? 12 : 10,
+                    }} />
+                  ) : (
+                    <span className="text-[10px]">Auto</span>
+                  )}
+                  <span className="text-[10px] font-medium">{ar.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 清晰度 */}
+          <div>
+            <p className="text-[11px] text-white/50 font-medium mb-2">清晰度</p>
+            <div className="flex gap-1.5">
+              {resolutions.map((res) => (
+                <button key={res} onClick={() => handleResSelect(res)}
+                  className={`px-4 py-2 rounded-lg border text-[12px] font-medium transition-all ${
+                    curShortSide === res
+                      ? "border-white/30 bg-white/12 text-white"
+                      : "border-white/8 text-white/50 hover:border-white/15 hover:text-white/70"
+                  }`}>
+                  {res}P
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 视频时长 */}
+          {mode === "video" && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] text-white/50 font-medium">视频时长</p>
+                <span className="text-[11px] text-white/60 font-mono">{durationSec}s</span>
+              </div>
+              <input type="range" min={1} max={15} step={1} value={durationSec}
+                onChange={(e) => handleDurationChange(Number(e.target.value))}
+                className="w-full h-1.5 rounded-full appearance-none bg-white/12 cursor-pointer
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-400 [&::-webkit-slider-thumb]:cursor-pointer
+                  [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full
+                  [&::-moz-range-thumb]:bg-blue-400 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+              />
+            </div>
+          )}
+
+          {/* 生成音频（仅视频） */}
+          {mode === "video" && (
+            <div>
+              <p className="text-[11px] text-white/50 font-medium mb-2">生成音频</p>
+              <div className="flex gap-2">
+                <button onClick={handleSoundToggle}
+                  className={`flex-1 py-2 rounded-lg border text-[12px] font-medium transition-all ${
+                    soundEffects ? "border-white/30 bg-white/12 text-white" : "border-white/8 text-white/50 hover:border-white/15"
+                  }`}>
+                  开启
+                </button>
+                <button onClick={handleSoundToggle}
+                  className={`flex-1 py-2 rounded-lg border text-[12px] font-medium transition-all ${
+                    !soundEffects ? "border-white/30 bg-white/12 text-white" : "border-white/8 text-white/50 hover:border-white/15"
+                  }`}>
+                  关闭
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 关闭按钮 */}
+          <button onClick={() => setShowParamDrop(false)}
+            className="w-full py-2 rounded-lg border border-white/10 text-[11px] text-white/50 hover:text-white/70 hover:border-white/20 transition-colors">
+            关闭
+          </button>
+        </div>
+      )}
+    </>
   );
 }

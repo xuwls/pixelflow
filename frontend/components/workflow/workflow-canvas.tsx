@@ -271,6 +271,9 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   const pendingSourceRef = useRef<number[]>([]);
   const closeMenu = useCallback(() => setMenu(null), []);
 
+  // ── box-select kind picker ─────────────────────────────────────────
+  const [boxPicker, setBoxPicker] = useState<{ screenX: number; screenY: number } | null>(null);
+
   // ── right-click drag box-select ────────────────────────────────────
   const [rbSelecting, setRbSelecting] = useState(false);
   const [rbRect, setRbRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -326,11 +329,12 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
       const ids = inside.map((n) => Number(n.id));
       pendingSourceRef.current = ids;
       setSelectedNodeIds(ids);
-      // select them in ReactFlow too
       setRfNodes((prev) => prev.map((n) => ({ ...n, selected: ids.includes(Number(n.id)) })));
-      // open edit dialog directly — no intermediate menu
-      setPendingPos(null);
-      setPendingKind("video");
+      // 弹出简易 kind 选择器（坐标相对于画布容器）
+      const wrapRect = wrapperRef.current?.getBoundingClientRect();
+      if (wrapRect) {
+        setBoxPicker({ screenX: e.clientX - wrapRect.left, screenY: e.clientY - wrapRect.top });
+      }
     }
     e.preventDefault();
   }, [rbSelecting, screenToFlowPosition, rfNodes, setRfNodes]);
@@ -522,6 +526,64 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
         onConfirm={handlePendingConfirm}
         onCancel={() => { setPendingKind(null); setPendingPos(null); setSelectedNodeIds([]); pendingSourceRef.current = []; }}
       />
+
+      {/* ── box-select kind picker ─────────────────────────── */}
+      {boxPicker && (
+        <>
+          <div className="absolute inset-0 z-40" onClick={() => { setBoxPicker(null); pendingSourceRef.current = []; setSelectedNodeIds([]); }} />
+          <div
+            className="absolute z-50 flex items-center gap-1 bg-[#1c1c20] border border-white/10 rounded-xl p-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
+            style={{ left: boxPicker.screenX, top: boxPicker.screenY }}
+          >
+            {([
+              { kind: "text" as NodeKind, icon: FileText, label: "文本" },
+              { kind: "image" as NodeKind, icon: ImageIcon, label: "图片" },
+              { kind: "video" as NodeKind, icon: Video, label: "视频" },
+            ]).map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.kind}
+                  onClick={async () => {
+                    const sourceIds = pendingSourceRef.current;
+                    setBoxPicker(null);
+                    try {
+                      // 计算位置：在选中节点右侧
+                      const sources = sourceIds.map((id) => rfNodes.find((n) => Number(n.id) === id)).filter(Boolean);
+                      const maxX = sources.length > 0 ? Math.max(...sources.map((n) => n!.position.x)) : 0;
+                      const avgY = sources.length > 0 ? sources.reduce((a, n) => a + n!.position.y, 0) / sources.length : 0;
+                      const node = await workflowApi.createNode(projectId, {
+                        kind: opt.kind,
+                        position_x: maxX + 320,
+                        position_y: avgY,
+                      });
+                      upsertNode(node);
+                      setRfNodes((prev) => [...prev, toRfNode(node)]);
+                      // 自动连线
+                      for (const srcId of sourceIds) {
+                        try {
+                          const edge = await workflowApi.createEdge(projectId, srcId, node.id);
+                          upsertEdge(edge);
+                          setRfEdges((prev) => [...prev, toRfEdge(edge, [])]);
+                        } catch { /* ignore */ }
+                      }
+                      toast.success(`已创建${KIND_LABELS[opt.kind]}节点`);
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "创建失败");
+                    }
+                    pendingSourceRef.current = [];
+                    setSelectedNodeIds([]);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] text-white/70 hover:bg-white/12 hover:text-white transition-colors"
+                >
+                  <Icon className="w-4 h-4" />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 });
