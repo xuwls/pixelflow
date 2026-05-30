@@ -59,11 +59,6 @@ export function updateAdminModel(
   });
 }
 
-export async function deleteAdminModel(id: number): Promise<void> {
-  const url = `/api/v1/admin/models/${id}`;
-  const res = await fetch(url, { method: "DELETE" });
-  if (!res.ok && res.status !== 204) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || "Delete failed");
-  }
+export function deleteAdminModel(id: number): Promise<void> {
+  return apiFetch(`/admin/models/${id}`, { method: "DELETE" });
 }

@@ -1,12 +1,16 @@
-services:
-  postgres:
-    ports:
-      - "5433:5432"
-
-  # backend / celery / frontend run natively on the host during dev
-  backend:
-    profiles: ["full"]
-  celery-worker:
-    profiles: ["full"]
-  frontend:
-    profiles: ["full"]
+# docker-compose.override.yml
+#
+# This file is automatically loaded by docker compose.
+# Use it for local development overrides only.
+#
+# Infrastructure (postgres, redis, minio) runs in Docker.
+# Backend (FastAPI), Celery worker, and Frontend (Next.js)
+# run natively on the host machine.
+#
+# If port 5432/6379/9000 conflicts with a local service,
+# override the host port here:
+#
+# services:
+#   postgres:
+#     ports:
+#       - "5433:5432"

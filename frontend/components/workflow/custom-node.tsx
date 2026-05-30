@@ -15,7 +15,7 @@ const KIND_ICONS: Record<NodeKind, React.ComponentType<{ className?: string }>> 
 };
 
 const STORAGE_BASE =
-  process.env.NEXT_PUBLIC_STORAGE_URL || "http://localhost:9000/pixelflow";
+  process.env.NEXT_PUBLIC_STORAGE_URL || "/pixelflow-media";
 
 function resolveAssetUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value) return null;

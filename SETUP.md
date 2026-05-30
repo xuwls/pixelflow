@@ -38,7 +38,7 @@ docker compose logs -f backend
 
 | 服务 | 地址 |
 | --- | --- |
-| **前端** | http://localhost:3000 |
+| **前端** | http://localhost:3001 |
 | **后端 API** | http://localhost:8000 |
 | **API 文档** | http://localhost:8000/docs |
 | **MinIO 控制台** | http://localhost:9001 (账号 `minioadmin` / `minioadmin`) |
@@ -240,7 +240,7 @@ psql postgresql://pixelflow:pixelflow_dev@localhost:5432/pixelflow
 
 | 端口 | 服务 | 协议 |
 | ---- | ----------------- | ----- |
-| 3000 | 前端 Next.js dev | HTTP |
+| 3001 | 前端 Next.js (PM2) | HTTP |
 | 8000 | 后端 FastAPI | HTTP / WS |
 | 5432 | PostgreSQL | TCP |
 | 6379 | Redis | TCP |
@@ -271,7 +271,7 @@ MinIO 默认是返回原始字节,确保前端的 `Content-Disposition` 用 `fil
 
 ### ❌ 前端连后端报 CORS
 
-后端默认允许 `localhost:3000`,如果换了端口,改 `backend/app/main.py` 里的 `CORSMiddleware` 白名单。
+后端默认允许 `localhost:3001`,如果换了端口,改 `backend/.env` 里的 `CORS_ORIGINS`。
 
 ### ❌ DashScope 调用 401 / 余额不足
 

@@ -1,3 +1,4 @@
+import asyncio
 from io import BytesIO
 
 import boto3
@@ -20,9 +21,9 @@ class StorageService:
 
     async def ensure_bucket(self):
         try:
-            self.client.head_bucket(Bucket=self.bucket)
+            await asyncio.to_thread(self.client.head_bucket, Bucket=self.bucket)
         except Exception:
-            self.client.create_bucket(Bucket=self.bucket)
+            await asyncio.to_thread(self.client.create_bucket, Bucket=self.bucket)
 
     async def upload_file(
         self,

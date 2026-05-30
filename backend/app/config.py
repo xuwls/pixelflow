@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     DEBUG: bool = True
     SECRET_KEY: str = "dev-secret"
+    CORS_ORIGINS: str = "http://localhost:3001"
 
     DATABASE_URL: str = "postgresql+asyncpg://pixelflow:pixelflow_dev@localhost:5432/pixelflow"
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -31,3 +32,12 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Warn if running in production with default secret key
+if settings.APP_ENV == "production" and settings.SECRET_KEY == "dev-secret":
+    import warnings
+    warnings.warn(
+        "SECRET_KEY is still set to the default 'dev-secret'. "
+        "Change it immediately for production use!",
+        stacklevel=2,
+    )

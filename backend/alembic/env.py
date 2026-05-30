@@ -10,7 +10,10 @@ from alembic import context
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from app.config import settings  # noqa: E402
 config = context.config
+# Override sqlalchemy.url from app Settings (reads .env)
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 

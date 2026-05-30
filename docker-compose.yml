@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: pixelflow-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: pixelflow
       POSTGRES_USER: pixelflow
@@ -19,6 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: pixelflow-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -31,6 +33,7 @@ services:
   minio:
     image: minio/minio:latest
     container_name: pixelflow-minio
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -45,62 +48,7 @@ services:
       interval: 5s
       retries: 5
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: docker/Dockerfile
-    container_name: pixelflow-backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    env_file:
-      - ./backend/.env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://pixelflow:pixelflow_dev@postgres:5432/pixelflow
-      REDIS_URL: redis://redis:6379/0
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: pixelflow-media
-    ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - media_work:/app/media_work
-
-  celery-worker:
-    build:
-      context: ./backend
-      dockerfile: docker/Dockerfile
-    container_name: pixelflow-worker
-    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=2 --pool=prefork
-    env_file:
-      - ./backend/.env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://pixelflow:pixelflow_dev@postgres:5432/pixelflow
-      REDIS_URL: redis://redis:6379/0
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: pixelflow-media
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - media_work:/app/media_work
-
 volumes:
   postgres_data:
   redis_data:
   minio_data:
-  media_work:

@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { Play, Upload, Trash2, ChevronDown, Image as ImageIcon, Video, Check } from "lucide-react";
 
 const STORAGE_BASE =
-  process.env.NEXT_PUBLIC_STORAGE_URL || "http://localhost:9000/pixelflow";
+  process.env.NEXT_PUBLIC_STORAGE_URL || "/pixelflow-media";
 
 function resolveAssetUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value) return null;
