@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   // but Next bound to localhost (or vice versa), HMR is blocked and client
   // components fail to hydrate — buttons appear inert. List the LAN/loopback
   // hosts we develop from here.
-  allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.124.4"],
+  allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.124.4", "124.220.64.31"],
   async rewrites() {
     return [
       {
