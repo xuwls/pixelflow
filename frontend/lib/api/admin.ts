@@ -30,7 +30,7 @@ export function updateProvider(
 }
 
 export async function deleteProvider(id: number): Promise<void> {
-  const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"}/admin/providers/${id}`;
+  const url = `${process.env.NEXT_PUBLIC_API_URL || "/api/v1"}/admin/providers/${id}`;
   const res = await fetch(url, { method: "DELETE" });
   if (!res.ok && res.status !== 204) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -60,7 +60,7 @@ export function updateAdminModel(
 }
 
 export async function deleteAdminModel(id: number): Promise<void> {
-  const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"}/admin/models/${id}`;
+  const url = `${process.env.NEXT_PUBLIC_API_URL || "/api/v1"}/admin/models/${id}`;
   const res = await fetch(url, { method: "DELETE" });
   if (!res.ok && res.status !== 204) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));

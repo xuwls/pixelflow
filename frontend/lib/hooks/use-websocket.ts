@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
 import type { NodeStatus } from "@/lib/types/workflow";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/ws";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || `ws://${typeof window !== 'undefined' ? window.location.host : 'localhost'}/ws`;
 
 export function useWebSocket(projectId: number | null) {
   const patchNode = useWorkflowStore((s) => s.patchNode);
