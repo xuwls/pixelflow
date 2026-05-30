@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
   // components fail to hydrate — buttons appear inert. List the LAN/loopback
   // hosts we develop from here.
   allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.124.4"],
+  async rewrites() {
+    return [
+      {
+        source: "/pixelflow-media/:path*",
+        destination: "http://localhost:9000/pixelflow-media/:path*",
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

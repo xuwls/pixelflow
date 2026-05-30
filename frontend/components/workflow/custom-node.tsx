@@ -70,11 +70,14 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
   const isDone = d.status === "completed";
   const isFail = d.status === "failed";
 
+  const hasMedia = !!preview?.src;
+
   return (
     <div
       className={cn(
         "relative glass-card text-card-foreground rounded-xl transition-all duration-200 overflow-hidden",
-        "w-[240px] hover:shadow-md",
+        hasMedia ? "w-[280px]" : "w-[240px]",
+        "hover:shadow-md",
         selected ? "!border-signal shadow-glow" : "",
         isRunning && "!border-signal",
         isDone && !selected && "!border-foreground/20",
@@ -87,73 +90,154 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
         className="!bg-foreground/40 !w-2 !h-2 !border-0"
       />
 
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 bg-secondary/20">
-        <div
-          className={cn(
-            "w-5 h-5 rounded-sm border grid place-items-center",
-            isRunning
-              ? "border-signal/60 bg-signal/10 text-signal"
-              : "border-border bg-muted/40 text-muted-foreground",
-            isDone && "border-foreground/30 text-foreground",
-            isFail && "border-destructive/70 text-destructive",
+      {/* ====== 图片/视频：有 output → 全屏铺开 ====== */}
+      {hasMedia && (
+        <div className="relative">
+          {preview!.kind === "image" && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={preview!.src}
+              alt=""
+              className="w-full h-auto block"
+              draggable={false}
+            />
           )}
-        >
-          <Icon className="w-3 h-3" />
-        </div>
-        <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
-          {KIND_LABELS[d.kind]}
-        </span>
-        <span className="flex-1" />
-        <StatusBadge status={d.status} />
-      </div>
 
-      {d.title && (
-        <p className="px-3 pt-2 text-[12px] font-medium tracking-wide truncate">
-          {d.title}
-        </p>
-      )}
+          {preview!.kind === "video" && (
+            <div className="relative aspect-[4/3] bg-black">
+              <video
+                src={preview!.src}
+                className="absolute inset-0 w-full h-full object-cover"
+                muted
+                loop
+                playsInline
+                preload="metadata"
+              />
+            </div>
+          )}
 
-      {preview?.kind === "image" && preview.src && (
-        <div className="aspect-video bg-muted/30 overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={preview.src}
-            alt=""
-            className="w-full h-full object-cover"
-            draggable={false}
-          />
-        </div>
-      )}
+          {/* 底部渐变遮罩 */}
+          <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
 
-      {preview?.kind === "video" && preview.src && (
-        <div className="aspect-video bg-black overflow-hidden">
-          <video
-            src={preview.src}
-            className="w-full h-full object-cover"
-            muted
-            loop
-            playsInline
-            preload="metadata"
-          />
+          {d.title && (
+            <p className="absolute bottom-5 left-2.5 right-2.5 text-[11px] font-medium text-white truncate drop-shadow-md">
+              {d.title}
+            </p>
+          )}
+
+          <div className="absolute top-2 left-2">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/45 backdrop-blur-sm text-[9px] font-mono tracking-wider uppercase text-white/90">
+              <Icon className="w-2.5 h-2.5" />
+              {KIND_LABELS[d.kind]}
+            </span>
+          </div>
+
+          {/* 已完成不显示状态 — 图片本身就是结果；只在 running / failed 等时显示 */}
+          {!isDone && (
+            <div className="absolute top-2 right-2">
+              <StatusBadge status={d.status} />
+            </div>
+          )}
         </div>
       )}
 
-      {preview?.kind === "text" && preview.text && (
-        <p className="px-3 pt-1 pb-2 text-[11px] leading-relaxed text-foreground/85 line-clamp-4 whitespace-pre-wrap">
-          {preview.text}
-        </p>
+      {/* ====== 图片/视频：无 output → 空白占位 ====== */}
+      {!hasMedia && d.kind === "image" && (
+        <div className="relative aspect-square bg-gradient-to-br from-muted/60 via-muted/30 to-muted/60">
+          <div className="absolute inset-0 grid place-items-center">
+            <div className="flex flex-col items-center gap-1.5">
+              <Icon className="w-6 h-6 text-muted-foreground/40" />
+              <span className="text-[9px] font-mono tracking-wider uppercase text-muted-foreground/50">
+                {KIND_LABELS[d.kind]}
+              </span>
+            </div>
+          </div>
+          {isRunning && (
+            <div className="absolute inset-0 grid place-items-center">
+              <div className="w-10 h-10 rounded-full border-2 border-signal/30 border-t-signal animate-spin" />
+            </div>
+          )}
+          <div className="absolute top-2 right-2">
+            <StatusBadge status={d.status} />
+          </div>
+        </div>
       )}
 
-      {!preview && d.prompt && (
-        <p className="px-3 pt-1 pb-2 text-[11px] leading-snug text-muted-foreground line-clamp-3 italic">
-          ▸ {d.prompt}
-        </p>
+      {!hasMedia && d.kind === "video" && (
+        <div className="relative aspect-[4/3] overflow-hidden">
+          {/* 毛玻璃模糊底图 */}
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-400/20 via-purple-400/15 to-pink-400/20 backdrop-blur-xl" />
+          <div className="absolute inset-0 bg-secondary/30 backdrop-blur-sm" />
+
+          <div className="absolute inset-0 grid place-items-center">
+            <div className="flex flex-col items-center gap-1.5">
+              <Icon className="w-6 h-6 text-muted-foreground/50" />
+              <span className="text-[9px] font-mono tracking-wider uppercase text-muted-foreground/60">
+                {KIND_LABELS[d.kind]}
+              </span>
+            </div>
+          </div>
+          {isRunning && (
+            <div className="absolute inset-0 grid place-items-center">
+              <div className="w-10 h-10 rounded-full border-2 border-signal/30 border-t-signal animate-spin" />
+            </div>
+          )}
+          <div className="absolute top-2 right-2">
+            <StatusBadge status={d.status} />
+          </div>
+        </div>
       )}
 
-      {!preview && !d.prompt && (
-        <p className="px-3 py-3 text-[10px] text-muted-foreground/70 font-mono tracking-wider uppercase">
-          empty · 右键编辑
-        </p>
+      {/* ====== 文本节点 ====== */}
+      {!hasMedia && d.kind === "text" && (
+        <div className="relative bg-gradient-to-br from-secondary/40 via-secondary/20 to-secondary/40">
+          {/* 左上角类型标签 */}
+          <div className="absolute top-2 left-2 z-10">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/45 backdrop-blur-sm text-[9px] font-mono tracking-wider uppercase text-white/90">
+              <Icon className="w-2.5 h-2.5" />
+              {KIND_LABELS[d.kind]}
+            </span>
+          </div>
+
+          {/* 右上角状态 */}
+          <div className="absolute top-2 right-2 z-10">
+            <StatusBadge status={d.status} />
+          </div>
+
+          {/* 内容区 */}
+          <div className="px-3 pt-8 pb-3">
+            {d.title && (
+              <p className="text-[12px] font-medium tracking-wide truncate mb-1">
+                {d.title}
+              </p>
+            )}
+
+            {preview?.kind === "text" && preview.text && (
+              <p className="text-[11px] leading-relaxed text-foreground/85 line-clamp-4 whitespace-pre-wrap">
+                {preview.text}
+              </p>
+            )}
+
+            {!preview && d.prompt && (
+              <p className="text-[11px] leading-snug text-muted-foreground line-clamp-3 italic">
+                ▸ {d.prompt}
+              </p>
+            )}
+
+            {!preview && !d.prompt && (
+              <p className="text-[10px] text-muted-foreground/60 font-mono tracking-wider uppercase py-1">
+                empty · 右键编辑
+              </p>
+            )}
+          </div>
+
+          {/* 运行中遮罩 */}
+          {isRunning && (
+            <div className="absolute inset-0 grid place-items-center bg-background/40 backdrop-blur-[2px]">
+              <div className="w-10 h-10 rounded-full border-2 border-signal/30 border-t-signal animate-spin" />
+            </div>
+          )}
+        </div>
       )}
 
       {isFail && d.error_message && (
