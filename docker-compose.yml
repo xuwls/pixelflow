@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -100,24 +98,6 @@ services:
     volumes:
       - ./backend:/app
       - media_work:/app/media_work
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: docker/Dockerfile
-    container_name: pixelflow-frontend
-    command: npm run dev
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
-      NEXT_PUBLIC_WS_URL: ws://localhost:8000/ws
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
 
 volumes:
   postgres_data:
