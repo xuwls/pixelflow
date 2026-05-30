@@ -98,13 +98,10 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: docker/Dockerfile.prod
-      args:
-        NEXT_PUBLIC_API_URL: http://124.220.64.31:8000/api/v1
-        NEXT_PUBLIC_WS_URL: ws://124.220.64.31:8000/ws
-        NEXT_PUBLIC_STORAGE_URL: /pixelflow-media
+      dockerfile: docker/Dockerfile
     container_name: pixelflow-frontend
     restart: always
+    command: npm run dev
     environment:
       NEXT_PUBLIC_API_URL: http://124.220.64.31:8000/api/v1
       NEXT_PUBLIC_WS_URL: ws://124.220.64.31:8000/ws
