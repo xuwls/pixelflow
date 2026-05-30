@@ -99,11 +99,15 @@ services:
     build:
       context: ./frontend
       dockerfile: docker/Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: /api/v1
+        NEXT_PUBLIC_WS_URL: ws://YOUR_SERVER_IP/ws
+        NEXT_PUBLIC_STORAGE_URL: /pixelflow-media
     container_name: pixelflow-frontend
     restart: always
     environment:
-      NEXT_PUBLIC_API_URL: http://YOUR_SERVER_IP:8000/api/v1
-      NEXT_PUBLIC_WS_URL: ws://YOUR_SERVER_IP:8000/ws
+      NEXT_PUBLIC_API_URL: /api/v1
+      NEXT_PUBLIC_WS_URL: ws://YOUR_SERVER_IP/ws
       NEXT_PUBLIC_STORAGE_URL: /pixelflow-media
     ports:
       - "3000:3000"
