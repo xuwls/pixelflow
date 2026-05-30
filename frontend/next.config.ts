@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/pixelflow-media/:path*",
-        destination: "http://localhost:9000/pixelflow-media/:path*",
+        destination: "http://minio:9000/pixelflow-media/:path*",
       },
     ];
   },
