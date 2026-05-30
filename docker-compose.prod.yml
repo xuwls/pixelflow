@@ -107,7 +107,7 @@ services:
       NEXT_PUBLIC_WS_URL: ws://124.220.64.31:8000/ws
       NEXT_PUBLIC_STORAGE_URL: /pixelflow-media
     ports:
-      - "3001:3000"
+      - "3000:3000"
     depends_on:
       - backend
 
