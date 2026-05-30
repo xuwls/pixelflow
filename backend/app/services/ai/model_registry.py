@@ -40,6 +40,7 @@ class ModelEntry:
     display_name: str
     is_default: bool = False
     default_params: dict[str, Any] = field(default_factory=dict)
+    param_constraints: dict[str, Any] = field(default_factory=dict)
     description: str = ""
     api_key: str = ""
     base_url: str | None = None
@@ -47,6 +48,24 @@ class ModelEntry:
 
 # ── In-memory snapshot ────────────────────────────────────────────────
 _SNAPSHOT: list[ModelEntry] = []
+
+
+def _constraints_for_model(model_name: str, capability: str) -> dict[str, Any]:
+    """Derive parameter constraints from model name and capability."""
+    if capability == "图片编辑/生成":
+        # 通义万相图片模型
+        if model_name.startswith("wanx2.1"):
+            return {"supported_sizes": [[1024, 1024], [720, 1280], [1280, 720], [768, 1152], [1152, 768]]}
+        return {"supported_sizes": [[1024, 1024], [720, 1280], [1280, 720]]}
+
+    if capability == "视频编辑/生成":
+        # 通义万相视频模型
+        if model_name.startswith("wan"):
+            return {"supported_resolutions": [720, 1080], "duration_range": [1, 5]}
+        # 其他视频模型默认
+        return {"supported_resolutions": [720, 1080], "duration_range": [1, 10]}
+
+    return {}
 
 
 def _entry_from_row(model: AIModel, provider: AIProvider) -> ModelEntry:
@@ -57,6 +76,7 @@ def _entry_from_row(model: AIModel, provider: AIProvider) -> ModelEntry:
         display_name=model.display_name,
         is_default=model.is_default,
         default_params=dict(model.default_params or {}),
+        param_constraints=_constraints_for_model(model.model_name, model.capability),
         description=model.description or "",
         api_key=provider.api_key or "",
         base_url=provider.base_url,

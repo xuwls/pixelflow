@@ -7,6 +7,11 @@ export interface ModelEntry {
   display_name: string;
   is_default: boolean;
   default_params: Record<string, unknown>;
+  param_constraints: {
+    supported_sizes?: number[][];
+    supported_resolutions?: number[];
+    duration_range?: [number, number];
+  };
   description: string;
 }
 

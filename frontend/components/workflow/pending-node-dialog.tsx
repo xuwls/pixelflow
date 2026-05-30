@@ -130,6 +130,39 @@ export function PendingNodeDialog({ open, kind: initialKind, sourceCount, onConf
     return "1:1";
   })();
 
+  // 参数约束（根据模型名推导）
+  const selectedM = models.find((m) => `${m.provider}:${m.model_name}` === modelKey);
+  const constraints = (() => {
+    if (!selectedM) return {};
+    const mn = selectedM.model_name;
+    if (kind === "image") {
+      if (mn.startsWith("wanx2.1")) return { supported_sizes: [[1024, 1024], [720, 1280], [1280, 720], [768, 1152], [1152, 768]] };
+      if (mn.startsWith("wanx")) return { supported_sizes: [[1024, 1024], [720, 1280], [1280, 720]] };
+      return { supported_sizes: [[1024, 1024], [720, 1280], [1280, 720], [768, 1152], [1152, 768], [1536, 1024], [1024, 1536]] };
+    }
+    if (kind === "video") {
+      if (mn.startsWith("wan")) return { supported_resolutions: [720, 1080], duration_range: [1, 5] as [number, number] };
+      return { supported_resolutions: [720, 1080], duration_range: [1, 10] as [number, number] };
+    }
+    return {};
+  })();
+
+  function isAspectSupported(label: string): boolean {
+    if (!constraints.supported_sizes) return true;
+    const ar = ASPECT_RATIOS.find((a) => a.label === label);
+    if (!ar) return true;
+    return constraints.supported_sizes.some(([sw, sh]) => Math.abs(sw / sh - ar.w / ar.h) < 0.05);
+  }
+
+  function isResSupported(res: number): boolean {
+    if (kind === "video") {
+      if (!constraints.supported_resolutions) return true;
+      return constraints.supported_resolutions.includes(res);
+    }
+    if (!constraints.supported_sizes) return true;
+    return constraints.supported_sizes.some(([sw, sh]) => Math.min(sw, sh) === res || Math.max(sw, sh) === res);
+  }
+
   function handleAspect(aspect: AspectPreset) {
     const { w, h } = computeDims(aspect.w, aspect.h, curShortSide || 1024);
     setWidth(w); setHeight(h);
@@ -222,9 +255,12 @@ export function PendingNodeDialog({ open, kind: initialKind, sourceCount, onConf
                 <div className="grid grid-cols-3 gap-2">
                   {ASPECT_RATIOS.map((ar) => {
                     const active = curAspectKey === ar.label;
+                    const supported = isAspectSupported(ar.label);
                     return (
-                      <button key={ar.label} type="button" onClick={() => handleAspect(ar)}
+                      <button key={ar.label} type="button" onClick={() => supported && handleAspect(ar)}
+                        disabled={!supported}
                         className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-all ${
+                          !supported ? "opacity-25 cursor-not-allowed border-border/20 text-muted-foreground/30" :
                           active ? "border-signal bg-signal/5 text-signal" : "border-border/40 bg-secondary/20 text-muted-foreground hover:border-border/60"
                         }`}
                       >
@@ -245,9 +281,12 @@ export function PendingNodeDialog({ open, kind: initialKind, sourceCount, onConf
                 <div className={kind === "video" ? "grid grid-cols-2 gap-2" : "grid grid-cols-3 gap-2"}>
                   {(kind === "video" ? VIDEO_RESOLUTIONS : IMAGE_RESOLUTIONS).map((res) => {
                     const active = curShortSide === res.base;
+                    const supported = isResSupported(res.base);
                     return (
-                      <button key={res.label} type="button" onClick={() => handleResolution(res)}
+                      <button key={res.label} type="button" onClick={() => supported && handleResolution(res)}
+                        disabled={!supported}
                         className={`relative flex items-center justify-center py-2.5 rounded-xl border transition-all ${
+                          !supported ? "opacity-25 cursor-not-allowed border-border/20 text-muted-foreground/30" :
                           active ? "border-signal bg-signal/5 text-signal" : "border-border/40 bg-secondary/20 text-muted-foreground hover:border-border/60"
                         }`}
                       >
@@ -268,7 +307,10 @@ export function PendingNodeDialog({ open, kind: initialKind, sourceCount, onConf
                     <p className="text-xs text-muted-foreground font-medium">时长</p>
                     <span className="text-sm font-mono text-foreground/70">{durationSec}s</span>
                   </div>
-                  <input type="range" min={1} max={15} step={1} value={durationSec}
+                  <input type="range"
+                    min={constraints.duration_range?.[0] ?? 1}
+                    max={constraints.duration_range?.[1] ?? 15}
+                    step={1} value={durationSec}
                     onChange={(e) => setDurationSec(Number(e.target.value))}
                     className="w-full h-1.5 rounded-full appearance-none bg-border/40 cursor-pointer
                       [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4

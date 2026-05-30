@@ -29,6 +29,7 @@ async def get_models(
                 display_name=m.display_name,
                 is_default=m.is_default,
                 default_params=m.default_params,
+                param_constraints=m.param_constraints,
                 description=m.description,
             )
             for m in entries

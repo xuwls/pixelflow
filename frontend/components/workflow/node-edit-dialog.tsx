@@ -139,6 +139,49 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
   })();
   const resolutions = mode === "video" ? VIDEO_RESOLUTIONS : IMAGE_RESOLUTIONS;
 
+  // ── 参数约束检查（根据 model_name 推导）──────────────────────
+  const constraints = (() => {
+    if (!selectedModel) return {};
+    const mn = selectedModel.model_name;
+    if (mode === "image") {
+      if (mn.startsWith("wanx2.1")) return { supported_sizes: [[1024, 1024], [720, 1280], [1280, 720], [768, 1152], [1152, 768]] };
+      if (mn.startsWith("wanx")) return { supported_sizes: [[1024, 1024], [720, 1280], [1280, 720]] };
+      // 其他图片模型（seedream, nano-banana 等）：支持常见尺寸
+      return { supported_sizes: [[1024, 1024], [720, 1280], [1280, 720], [768, 1152], [1152, 768], [1536, 1024], [1024, 1536], [2048, 1024], [1024, 2048]] };
+    }
+    if (mode === "video") {
+      if (mn.startsWith("wan")) return { supported_resolutions: [720, 1080], duration_range: [1, 5] as [number, number] };
+      return { supported_resolutions: [720, 1080], duration_range: [1, 10] as [number, number] };
+    }
+    return {};
+  })();
+
+  function isAspectSupported(label: string): boolean {
+    if (!constraints.supported_sizes) return true; // 无约束 = 全部支持
+    const ar = ASPECT_OPTIONS.find((a) => a.label === label);
+    if (!ar || ar.w === 0) return true; // Auto 总是支持
+    return constraints.supported_sizes.some(([sw, sh]) => {
+      const ratio = sw / sh;
+      const targetRatio = ar.w / ar.h;
+      return Math.abs(ratio - targetRatio) < 0.05;
+    });
+  }
+
+  function isResSupported(res: number): boolean {
+    if (mode === "video") {
+      if (!constraints.supported_resolutions) return true;
+      return constraints.supported_resolutions.includes(res);
+    }
+    // 图片：检查 supported_sizes 中是否有短边为 res 的
+    if (!constraints.supported_sizes) return true;
+    return constraints.supported_sizes.some(([sw, sh]) => Math.min(sw, sh) === res || Math.max(sw, sh) === res);
+  }
+
+  function isDurationSupported(val: number): boolean {
+    if (!constraints.duration_range) return true;
+    return val >= constraints.duration_range[0] && val <= constraints.duration_range[1];
+  }
+
   // dropdowns
   const [showModelDrop, setShowModelDrop] = useState(false);
   const [showParamDrop, setShowParamDrop] = useState(false);
@@ -357,24 +400,29 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
           <div>
             <p className="text-[11px] text-white/50 font-medium mb-2">比例</p>
             <div className="flex flex-wrap gap-1.5">
-              {ASPECT_OPTIONS.map((ar) => (
-                <button key={ar.label} onClick={() => handleAspectSelect(ar.label)}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg border transition-all ${
-                    curAspectKey === ar.label
-                      ? "border-white/30 bg-white/12 text-white"
-                      : "border-white/8 text-white/50 hover:border-white/15 hover:text-white/70"
-                  }`}>
-                  {ar.w > 0 ? (
-                    <div className="border border-current rounded-sm opacity-50" style={{
-                      width: ar.w > ar.h ? 18 : ar.w === ar.h ? 12 : 10,
-                      height: ar.h > ar.w ? 18 : ar.w === ar.h ? 12 : 10,
-                    }} />
-                  ) : (
-                    <span className="text-[10px]">Auto</span>
-                  )}
-                  <span className="text-[10px] font-medium">{ar.label}</span>
-                </button>
-              ))}
+              {ASPECT_OPTIONS.map((ar) => {
+                const supported = isAspectSupported(ar.label);
+                return (
+                  <button key={ar.label} onClick={() => supported && handleAspectSelect(ar.label)}
+                    disabled={!supported}
+                    className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg border transition-all ${
+                      !supported ? "opacity-25 cursor-not-allowed border-white/5 text-white/20" :
+                      curAspectKey === ar.label
+                        ? "border-white/30 bg-white/12 text-white"
+                        : "border-white/8 text-white/50 hover:border-white/15 hover:text-white/70"
+                    }`}>
+                    {ar.w > 0 ? (
+                      <div className="border border-current rounded-sm opacity-50" style={{
+                        width: ar.w > ar.h ? 18 : ar.w === ar.h ? 12 : 10,
+                        height: ar.h > ar.w ? 18 : ar.w === ar.h ? 12 : 10,
+                      }} />
+                    ) : (
+                      <span className="text-[10px]">Auto</span>
+                    )}
+                    <span className="text-[10px] font-medium">{ar.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -382,16 +430,21 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
           <div>
             <p className="text-[11px] text-white/50 font-medium mb-2">清晰度</p>
             <div className="flex gap-1.5">
-              {resolutions.map((res) => (
-                <button key={res} onClick={() => handleResSelect(res)}
-                  className={`px-4 py-2 rounded-lg border text-[12px] font-medium transition-all ${
-                    curShortSide === res
-                      ? "border-white/30 bg-white/12 text-white"
-                      : "border-white/8 text-white/50 hover:border-white/15 hover:text-white/70"
-                  }`}>
-                  {res}P
-                </button>
-              ))}
+              {resolutions.map((res) => {
+                const supported = isResSupported(res);
+                return (
+                  <button key={res} onClick={() => supported && handleResSelect(res)}
+                    disabled={!supported}
+                    className={`px-4 py-2 rounded-lg border text-[12px] font-medium transition-all ${
+                      !supported ? "opacity-25 cursor-not-allowed border-white/5 text-white/20" :
+                      curShortSide === res
+                        ? "border-white/30 bg-white/12 text-white"
+                        : "border-white/8 text-white/50 hover:border-white/15 hover:text-white/70"
+                    }`}>
+                    {res}P
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -402,7 +455,10 @@ function NodeEditContent({ projectId, node, onDelete }: { projectId: number; nod
                 <p className="text-[11px] text-white/50 font-medium">视频时长</p>
                 <span className="text-[11px] text-white/60 font-mono">{durationSec}s</span>
               </div>
-              <input type="range" min={1} max={15} step={1} value={durationSec}
+              <input type="range"
+                min={constraints.duration_range?.[0] ?? 1}
+                max={constraints.duration_range?.[1] ?? 15}
+                step={1} value={durationSec}
                 onChange={(e) => handleDurationChange(Number(e.target.value))}
                 className="w-full h-1.5 rounded-full appearance-none bg-white/12 cursor-pointer
                   [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4

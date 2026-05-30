@@ -27,7 +27,6 @@ import * as workflowApi from "@/lib/api/workflow";
 import { toast } from "sonner";
 import { FileText, Image as ImageIcon, Video, Trash2, Play, Plus, Settings } from "lucide-react";
 import { NodeEditDialog } from "./node-edit-dialog";
-import { PendingNodeDialog, type PendingNodeConfig } from "./pending-node-dialog";
 
 const NODE_TYPES = { custom: CustomNode };
 const DELETE_KEY_CODE: string[] = ["Delete", "Backspace"];
@@ -266,9 +265,8 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
   const [menu, setMenu] = useState<MenuState>(null);
   const [editNodeId, setEditNodeId] = useState<number | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<number[]>([]);
-  const [pendingKind, setPendingKind] = useState<NodeKind | null>(null);
-  const [pendingPos, setPendingPos] = useState<{ x: number; y: number } | null>(null);
   const pendingSourceRef = useRef<number[]>([]);
+  const pendingPosRef = useRef<{ x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
 
   // ── box-select kind picker ─────────────────────────────────────────
@@ -376,62 +374,6 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
     [],
   );
 
-  // ── pending node creation ──────────────────────────────────────────
-  const handlePendingConfirm = useCallback(
-    async (config: PendingNodeConfig) => {
-      const sourceIds = pendingSourceRef.current;
-      const sources = sourceIds
-        .map((id) => rfNodes.find((n) => Number(n.id) === id))
-        .filter(Boolean) as RFNode<CustomNodeData>[];
-
-      let posX: number;
-      let posY: number;
-
-      if (sources.length > 0) {
-        const maxX = Math.max(...sources.map((n) => n.position.x));
-        const avgY = sources.reduce((acc, n) => acc + n.position.y, 0) / sources.length;
-        posX = maxX + 320;
-        posY = avgY;
-      } else if (pendingPos) {
-        posX = pendingPos.x;
-        posY = pendingPos.y;
-      } else {
-        posX = 0;
-        posY = 0;
-      }
-
-      try {
-        const node = await workflowApi.createNode(projectId, {
-          kind: config.kind,
-          title: config.title || undefined,
-          prompt: config.prompt,
-          position_x: posX,
-          position_y: posY,
-          config_json: config.config_json,
-        });
-        upsertNode(node);
-        setRfNodes((prev) => [...prev, toRfNode(node)]);
-
-        for (const src of sources) {
-          try {
-            const edge = await workflowApi.createEdge(projectId, Number(src.id), node.id);
-            upsertEdge(edge);
-            setRfEdges((prev) => [...prev, toRfEdge(edge, [])]);
-          } catch { /* ignore */ }
-        }
-
-        setPendingKind(null);
-        setPendingPos(null);
-        setSelectedNodeIds([]);
-        pendingSourceRef.current = [];
-        toast.success(`已创建${KIND_LABELS[config.kind]}节点`);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "创建节点失败");
-      }
-    },
-    [projectId, pendingPos, rfNodes, setRfNodes, setRfEdges, upsertNode, upsertEdge],
-  );
-
   // ── menu building ──────────────────────────────────────────────────
 
   const menuItems: MenuItem[] = useMemo(() => {
@@ -440,10 +382,12 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
       return [{
         key: "create", label: "新建节点", icon: <Plus className="w-3.5 h-3.5" />,
         onSelect: () => {
-          setPendingPos({ x: menu.flowX, y: menu.flowY });
-          setSelectedNodeIds([]);
+          // 用简易 kind 选择器代替 PendingNodeDialog
           pendingSourceRef.current = [];
-          setPendingKind("video");
+          setSelectedNodeIds([]);
+          setBoxPicker({ screenX: menu.screenX - (wrapperRef.current?.getBoundingClientRect().left ?? 0), screenY: menu.screenY - (wrapperRef.current?.getBoundingClientRect().top ?? 0) });
+          // 记住点击位置用于创建节点
+          pendingPosRef.current = { x: menu.flowX, y: menu.flowY };
         },
       }];
     }
@@ -453,10 +397,14 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
       const canRun = Boolean(node.data.prompt && node.data.prompt.trim());
       return [
         { key: "continue", label: "继续 · 自动连线", icon: <Plus className="w-3.5 h-3.5" />, onSelect: () => {
-          setPendingPos({ x: node.position.x + 320, y: node.position.y });
+          // 用简易 kind 选择器，记住源节点和位置
           setSelectedNodeIds([menu.nodeId]);
           pendingSourceRef.current = [menu.nodeId];
-          setPendingKind("video");
+          pendingPosRef.current = { x: node.position.x + 320, y: node.position.y };
+          setBoxPicker({
+            screenX: (wrapperRef.current?.getBoundingClientRect().left ?? 0) + node.position.x + 320,
+            screenY: (wrapperRef.current?.getBoundingClientRect().top ?? 0) + node.position.y,
+          });
         } },
         { key: "edit", label: "编辑", icon: <Settings className="w-3.5 h-3.5" />, onSelect: () => setEditNodeId(menu.nodeId) },
         { key: "run", label: "运行此节点", icon: <Play className="w-3.5 h-3.5" />, disabled: !canRun || node.data.status === "running", onSelect: async () => {
@@ -519,15 +467,7 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
         node={editNodeId !== null ? (useWorkflowStore.getState().nodes.find((n: WorkflowNode) => n.id === editNodeId) ?? null) : null}
       />
 
-      <PendingNodeDialog
-        open={pendingKind !== null}
-        kind={pendingKind ?? "video"}
-        sourceCount={pendingSourceRef.current.length}
-        onConfirm={handlePendingConfirm}
-        onCancel={() => { setPendingKind(null); setPendingPos(null); setSelectedNodeIds([]); pendingSourceRef.current = []; }}
-      />
-
-      {/* ── box-select kind picker ─────────────────────────── */}
+      {/* ── kind picker（右键新建 + 框选共用）───────────────── */}
       {boxPicker && (
         <>
           <div className="absolute inset-0 z-40" onClick={() => { setBoxPicker(null); pendingSourceRef.current = []; setSelectedNodeIds([]); }} />
@@ -546,16 +486,27 @@ const CanvasInner = memo(function CanvasInner({ projectId, initialNodes, initial
                   key={opt.kind}
                   onClick={async () => {
                     const sourceIds = pendingSourceRef.current;
+                    const clickPos = pendingPosRef.current;
                     setBoxPicker(null);
+                    pendingPosRef.current = null;
                     try {
-                      // 计算位置：在选中节点右侧
-                      const sources = sourceIds.map((id) => rfNodes.find((n) => Number(n.id) === id)).filter(Boolean);
-                      const maxX = sources.length > 0 ? Math.max(...sources.map((n) => n!.position.x)) : 0;
-                      const avgY = sources.length > 0 ? sources.reduce((a, n) => a + n!.position.y, 0) / sources.length : 0;
+                      // 计算位置：有选中节点则放右侧，否则用右键位置
+                      let posX: number;
+                      let posY: number;
+                      if (sourceIds.length > 0) {
+                        const sources = sourceIds.map((id) => rfNodes.find((n) => Number(n.id) === id)).filter(Boolean);
+                        posX = Math.max(...sources.map((n) => n!.position.x)) + 320;
+                        posY = sources.reduce((a, n) => a + n!.position.y, 0) / sources.length;
+                      } else if (clickPos) {
+                        posX = clickPos.x;
+                        posY = clickPos.y;
+                      } else {
+                        posX = 0; posY = 0;
+                      }
                       const node = await workflowApi.createNode(projectId, {
                         kind: opt.kind,
-                        position_x: maxX + 320,
-                        position_y: avgY,
+                        position_x: posX,
+                        position_y: posY,
                       });
                       upsertNode(node);
                       setRfNodes((prev) => [...prev, toRfNode(node)]);

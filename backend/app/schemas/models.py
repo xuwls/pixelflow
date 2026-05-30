@@ -10,6 +10,7 @@ class ModelEntryResponse(BaseModel):
     display_name: str
     is_default: bool = False
     default_params: dict = {}
+    param_constraints: dict = {}
     description: str = ""
 
 
